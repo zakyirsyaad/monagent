@@ -1,4 +1,5 @@
 export * from "./sdk.js";
+export * from "./monad.js";
 export * from "./commands/monad/pay.js";
 export * from "./commands/monad/identity/register.js";
 export * from "./commands/monad/identity/get.js";

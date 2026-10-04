@@ -4,16 +4,62 @@ import {
   type PluginCommandContext,
   CommandError,
   InputFieldType,
+  type InputSchema,
 } from "@metamask/agent-wallet/plugin";
-import type { PublicClient } from "viem";
+import { createPublicClient, http, type PublicClient } from "viem";
+import { MONAD_TESTNET_CHAIN_ID, MONAD_TESTNET_RPC_URL, MONAD_MAINNET_CHAIN_ID, MONAD_MAINNET_RPC_URL } from "./monad.js";
 
 export abstract class BaseMonadPluginCommand<TFinal = void> extends PluginCommand<TFinal> {
   static description: string;
+  static requiresAuth = false;
+  static requiresInit = false;
   public declare ctx: PluginCommandContext;
   protected abstract readonly pluginCommandId: string;
 
   public setContext(ctx: PluginCommandContext): void {
     this.ctx = ctx;
+  }
+
+  /**
+   * Get an EVM PublicClient for reads, preferring the host's publicClient if available and working,
+   * with fallback to canonical Monad RPC when running in test environments or when host gateway fails.
+   */
+  public getPublicClient(chainId: number = MONAD_TESTNET_CHAIN_ID): PublicClient {
+    const rpcUrl = chainId === MONAD_MAINNET_CHAIN_ID ? MONAD_MAINNET_RPC_URL : MONAD_TESTNET_RPC_URL;
+    const directClient = createPublicClient({
+      transport: http(rpcUrl),
+    }) as unknown as PublicClient;
+
+    if (this.ctx && typeof this.ctx.publicClient === "function") {
+      try {
+        const hostClient = this.ctx.publicClient(chainId);
+        // Wrap hostClient with fallback to directClient on RPC transport errors (such as 400 Invalid chainId from Infura proxy)
+        return new Proxy(hostClient, {
+          get(target, prop, receiver) {
+            const orig = Reflect.get(target, prop, receiver);
+            if (typeof orig === "function") {
+              return async (...args: any[]) => {
+                try {
+                  return await orig.apply(target, args);
+                } catch (err) {
+                  // If host publicClient method fails (e.g. Infura proxy invalid chainId), fallback to direct Monad RPC
+                  const fallbackFn = Reflect.get(directClient, prop, directClient);
+                  if (typeof fallbackFn === "function") {
+                    return await fallbackFn.apply(directClient, args);
+                  }
+                  throw err;
+                }
+              };
+            }
+            return orig;
+          },
+        });
+      } catch {
+        // Host resolution threw synchronously
+      }
+    }
+
+    return directClient;
   }
 }
 
@@ -22,6 +68,7 @@ export {
   type PluginCommandContext,
   CommandError,
   InputFieldType,
+  type InputSchema,
   type PublicClient,
 };
 
@@ -149,4 +196,3 @@ export async function executeSignTypedData(
 
   return res.signature;
 }
-

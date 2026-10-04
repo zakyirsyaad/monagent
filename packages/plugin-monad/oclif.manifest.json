@@ -1,68 +1,1170 @@
 {
-  "version": "0.1.0",
   "commands": {
     "monad:pay": {
-      "id": "monad:pay",
+      "aliases": [],
+      "args": {},
       "description": "Send direct MON or ERC-20 payment on Monad Testnet",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "to": {
+          "description": "Recipient EVM address on Monad",
+          "name": "to",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "amount": {
+          "description": "Amount to transfer (e.g. 0.5)",
+          "name": "amount",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "token": {
+          "description": "Token symbol (default MON)",
+          "name": "token",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "memo": {
+          "description": "Payment memo or reason",
+          "name": "memo",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:pay",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
       "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
-      "aliases": []
-    },
-    "monad:identity:register": {
-      "id": "monad:identity:register",
-      "description": "Register an AI Agent identity on Monad Testnet ERC-8004 Registry",
-      "pluginName": "@zakyirsyaad/monagent-plugin",
-      "pluginType": "core",
-      "aliases": []
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "to": {
+          "type": "text",
+          "flag": "to",
+          "message": "Recipient EVM address on Monad",
+          "required": true
+        },
+        "amount": {
+          "type": "text",
+          "flag": "amount",
+          "message": "Amount to transfer (e.g. 0.5)",
+          "required": true
+        },
+        "token": {
+          "type": "text",
+          "flag": "token",
+          "message": "Token symbol (default MON)",
+          "default": "MON",
+          "required": false
+        },
+        "memo": {
+          "type": "text",
+          "flag": "memo",
+          "message": "Payment memo or reason",
+          "required": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "pay.js"
+      ]
     },
     "monad:identity:get": {
-      "id": "monad:identity:get",
+      "aliases": [],
+      "args": {
+        "agentId": {
+          "description": "Agent token ID in ERC-8004 registry",
+          "name": "agentId",
+          "required": true
+        }
+      },
       "description": "Get agent identity details from Monad Testnet ERC-8004 Registry",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "agentId": {
+          "description": "Agent token ID in ERC-8004 registry",
+          "name": "agentId",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:identity:get",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
       "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
-      "aliases": []
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "agentId": {
+          "type": "text",
+          "flag": "agentId",
+          "message": "Agent token ID in ERC-8004 registry",
+          "required": true,
+          "index": 0
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "default": "10143",
+          "required": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "identity",
+        "get.js"
+      ]
     },
-    "monad:reputation:check": {
-      "id": "monad:reputation:check",
-      "description": "Check peer agent reputation on Monad ERC-8004 Reputation Registry",
+    "monad:identity:register": {
+      "aliases": [],
+      "args": {},
+      "description": "Register an AI Agent identity on Monad Testnet ERC-8004 Registry",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Human-readable agent name",
+          "name": "name",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "description": {
+          "description": "Agent description and capabilities",
+          "name": "description",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "walletAddress": {
+          "description": "Agent operational EVM wallet address",
+          "name": "walletAddress",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "endpoint": {
+          "description": "Primary service endpoint URL",
+          "name": "endpoint",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:identity:register",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
       "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
-      "aliases": []
-    },
-    "monad:reputation:give": {
-      "id": "monad:reputation:give",
-      "description": "Submit on-chain peer feedback to Monad ERC-8004 Reputation Registry",
-      "pluginName": "@zakyirsyaad/monagent-plugin",
-      "pluginType": "core",
-      "aliases": []
-    },
-    "monad:x402:pay": {
-      "id": "monad:x402:pay",
-      "description": "Execute paid tool/API call over HTTP 402 with Monad micropayments",
-      "pluginName": "@zakyirsyaad/monagent-plugin",
-      "pluginType": "core",
-      "aliases": []
-    },
-    "monad:jobs:create": {
-      "id": "monad:jobs:create",
-      "description": "Create and fund a subcontracted A2A task escrow on Monad",
-      "pluginName": "@zakyirsyaad/monagent-plugin",
-      "pluginType": "core",
-      "aliases": []
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "name": {
+          "type": "text",
+          "flag": "name",
+          "message": "Human-readable agent name",
+          "required": true
+        },
+        "description": {
+          "type": "text",
+          "flag": "description",
+          "message": "Agent description and capabilities",
+          "required": true
+        },
+        "walletAddress": {
+          "type": "text",
+          "flag": "walletAddress",
+          "message": "Agent operational EVM wallet address",
+          "required": true
+        },
+        "endpoint": {
+          "type": "text",
+          "flag": "endpoint",
+          "message": "Primary service endpoint URL",
+          "default": "https://agent.xyz",
+          "required": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "identity",
+        "register.js"
+      ]
     },
     "monad:jobs:complete": {
-      "id": "monad:jobs:complete",
+      "aliases": [],
+      "args": {},
       "description": "Complete and release a subcontracted A2A task escrow on Monad",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "jobId": {
+          "description": "Escrow job ID to complete",
+          "name": "jobId",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "resultURI": {
+          "description": "Deliverable URI or proof hash",
+          "name": "resultURI",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:jobs:complete",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
       "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
-      "aliases": []
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "jobId": {
+          "type": "text",
+          "flag": "jobId",
+          "message": "Escrow job ID to complete",
+          "required": true,
+          "index": 0
+        },
+        "resultURI": {
+          "type": "text",
+          "flag": "resultURI",
+          "message": "Deliverable URI or proof hash",
+          "default": "ipfs://settled",
+          "required": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "jobs",
+        "complete.js"
+      ]
+    },
+    "monad:jobs:create": {
+      "aliases": [],
+      "args": {},
+      "description": "Create and fund a subcontracted A2A task escrow on Monad",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "workerAddress": {
+          "description": "Worker EVM address receiving the escrow bounty",
+          "name": "workerAddress",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "bountyMon": {
+          "description": "Bounty amount in native MON (e.g. 0.2)",
+          "name": "bountyMon",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "taskDescription": {
+          "description": "Clear deliverable description or specifications",
+          "name": "taskDescription",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "deadlineHours": {
+          "description": "Review and task window in hours (default 24)",
+          "name": "deadlineHours",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:jobs:create",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "workerAddress": {
+          "type": "text",
+          "flag": "workerAddress",
+          "message": "Worker EVM address receiving the escrow bounty",
+          "required": true
+        },
+        "bountyMon": {
+          "type": "text",
+          "flag": "bountyMon",
+          "message": "Bounty amount in native MON (e.g. 0.2)",
+          "required": true
+        },
+        "taskDescription": {
+          "type": "text",
+          "flag": "taskDescription",
+          "message": "Clear deliverable description or specifications",
+          "required": true
+        },
+        "deadlineHours": {
+          "type": "text",
+          "flag": "deadlineHours",
+          "message": "Review and task window in hours (default 24)",
+          "default": "24",
+          "required": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "jobs",
+        "create.js"
+      ]
     },
     "monad:jobs:refund": {
-      "id": "monad:jobs:refund",
+      "aliases": [],
+      "args": {},
       "description": "Refund an expired subcontracted A2A task escrow on Monad",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "jobId": {
+          "description": "Escrow job ID to refund after deadline",
+          "name": "jobId",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:jobs:refund",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
       "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
-      "aliases": []
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "jobId": {
+          "type": "text",
+          "flag": "jobId",
+          "message": "Escrow job ID to refund after deadline",
+          "required": true,
+          "index": 0
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "jobs",
+        "refund.js"
+      ]
+    },
+    "monad:reputation:check": {
+      "aliases": [],
+      "args": {},
+      "description": "Check peer agent reputation on Monad ERC-8004 Reputation Registry",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "agentId": {
+          "description": "Agent token ID in ERC-8004 registry",
+          "name": "agentId",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tag1": {
+          "description": "Filter by primary category tag (e.g. speed)",
+          "name": "tag1",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tag2": {
+          "description": "Filter by secondary category tag (e.g. task)",
+          "name": "tag2",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:reputation:check",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "agentId": {
+          "type": "text",
+          "flag": "agentId",
+          "message": "Agent token ID in ERC-8004 registry",
+          "required": true,
+          "index": 0
+        },
+        "tag1": {
+          "type": "text",
+          "flag": "tag1",
+          "message": "Filter by primary category tag (e.g. speed)",
+          "default": "",
+          "required": false
+        },
+        "tag2": {
+          "type": "text",
+          "flag": "tag2",
+          "message": "Filter by secondary category tag (e.g. task)",
+          "default": "",
+          "required": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "reputation",
+        "check.js"
+      ]
+    },
+    "monad:reputation:give": {
+      "aliases": [],
+      "args": {},
+      "description": "Submit on-chain peer feedback to Monad ERC-8004 Reputation Registry",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "agentId": {
+          "description": "Target agent ID in ERC-8004 registry",
+          "name": "agentId",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "value": {
+          "description": "Feedback score (-100 to 100)",
+          "name": "value",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "decimals": {
+          "description": "Decimals for score (default 0)",
+          "name": "decimals",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tag1": {
+          "description": "Primary feedback category tag (e.g. speed)",
+          "name": "tag1",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tag2": {
+          "description": "Secondary category tag (e.g. accuracy)",
+          "name": "tag2",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "endpoint": {
+          "description": "Service endpoint that performed the task",
+          "name": "endpoint",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "feedbackURI": {
+          "description": "URI pointing to detailed review or task proof",
+          "name": "feedbackURI",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:reputation:give",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "agentId": {
+          "type": "text",
+          "flag": "agentId",
+          "message": "Target agent ID in ERC-8004 registry",
+          "required": true
+        },
+        "value": {
+          "type": "text",
+          "flag": "value",
+          "message": "Feedback score (-100 to 100)",
+          "required": true
+        },
+        "decimals": {
+          "type": "text",
+          "flag": "decimals",
+          "message": "Decimals for score (default 0)",
+          "default": "0",
+          "required": false
+        },
+        "tag1": {
+          "type": "text",
+          "flag": "tag1",
+          "message": "Primary feedback category tag (e.g. speed)",
+          "default": "general",
+          "required": false
+        },
+        "tag2": {
+          "type": "text",
+          "flag": "tag2",
+          "message": "Secondary category tag (e.g. accuracy)",
+          "default": "task",
+          "required": false
+        },
+        "endpoint": {
+          "type": "text",
+          "flag": "endpoint",
+          "message": "Service endpoint that performed the task",
+          "default": "",
+          "required": false
+        },
+        "feedbackURI": {
+          "type": "text",
+          "flag": "feedbackURI",
+          "message": "URI pointing to detailed review or task proof",
+          "default": "",
+          "required": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "reputation",
+        "give.js"
+      ]
+    },
+    "monad:x402:pay": {
+      "aliases": [],
+      "args": {},
+      "description": "Execute paid tool/API call over HTTP 402 with real x402 EVM micropayments",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "url": {
+          "description": "Target HTTP 402 paid endpoint URL",
+          "name": "url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "method": {
+          "description": "HTTP method (GET or POST)",
+          "name": "method",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "body": {
+          "description": "HTTP request JSON body for POST requests",
+          "name": "body",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "maxSpend": {
+          "description": "Maximum spend limit in token base units (e.g. 1000000 for 1 USDC)",
+          "name": "maxSpend",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "payer": {
+          "description": "Explicit payer EVM address (if not inferred)",
+          "name": "payer",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:x402:pay",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "url": {
+          "type": "text",
+          "flag": "url",
+          "message": "Target HTTP 402 paid endpoint URL",
+          "required": true
+        },
+        "method": {
+          "type": "text",
+          "flag": "method",
+          "message": "HTTP method (GET or POST)",
+          "default": "GET",
+          "required": false
+        },
+        "body": {
+          "type": "text",
+          "flag": "body",
+          "message": "HTTP request JSON body for POST requests",
+          "required": false
+        },
+        "maxSpend": {
+          "type": "text",
+          "flag": "maxSpend",
+          "message": "Maximum spend limit in token base units (e.g. 1000000 for 1 USDC)",
+          "default": "1000000",
+          "required": false
+        },
+        "payer": {
+          "type": "text",
+          "flag": "payer",
+          "message": "Explicit payer EVM address (if not inferred)",
+          "required": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "x402",
+        "pay.js"
+      ]
     }
-  }
+  },
+  "version": "0.1.1"
 }
