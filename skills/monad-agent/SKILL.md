@@ -11,7 +11,7 @@ This skill teaches AI agents how to execute financial and trust operations on **
 
 1. Install the MetaMask Agent Wallet CLI (`mm`):
    ```bash
-   npm install -g @metamask/agent-wallet@latest
+   npm install -g @metamask/agent-wallet@7
    ```
 2. Enable experimental plugins and install `@zakyirsyaad/monagent-plugin`:
    ```bash
