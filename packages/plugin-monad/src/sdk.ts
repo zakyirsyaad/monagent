@@ -45,6 +45,8 @@ export abstract class BaseMonadPluginCommand<TFinal = void> extends PluginComman
                     const isTransportError =
                       err instanceof HttpRequestError ||
                       err?.cause instanceof HttpRequestError ||
+                      err?.name === "HttpRequestError" ||
+                      err?.cause?.name === "HttpRequestError" ||
                       (typeof err?.status === "number" && (err.status === 400 || err.status === 500)) ||
                       (typeof err?.cause?.status === "number" && (err.cause.status === 400 || err.cause.status === 500)) ||
                       errMsg.includes("HTTP request failed") ||

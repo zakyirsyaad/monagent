@@ -49,7 +49,7 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
     memo: {
       type: InputFieldType.Text,
       flag: "memo",
-      message: "Payment memo or reason",
+      message: "Payment memo or reason (audit log note, not stored on-chain)",
       required: false,
     },
     chainId: {
@@ -57,7 +57,6 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
       flag: "chain-id",
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
-      default: "10143",
       required: false,
     },
   };

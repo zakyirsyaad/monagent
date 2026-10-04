@@ -59,7 +59,7 @@
           "type": "option"
         },
         "memo": {
-          "description": "Payment memo or reason",
+          "description": "Payment memo or reason (audit log note, not stored on-chain)",
           "name": "memo",
           "hasDynamicHelp": false,
           "multiple": false,
@@ -130,7 +130,7 @@
         "memo": {
           "type": "text",
           "flag": "memo",
-          "message": "Payment memo or reason",
+          "message": "Payment memo or reason (audit log note, not stored on-chain)",
           "required": false
         },
         "chainId": {
@@ -140,7 +140,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -259,7 +258,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -411,7 +409,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -544,7 +541,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -696,7 +692,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -816,7 +811,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -962,7 +956,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -1153,7 +1146,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -1325,7 +1317,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },

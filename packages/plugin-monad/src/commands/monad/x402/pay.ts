@@ -74,7 +74,6 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       flag: "chain-id",
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
-      default: "10143",
       required: false,
     },
   };
@@ -166,19 +165,21 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       );
     }
 
-    // Inspect accepted payment requirements
+    // Resolve target chain from user input (defaults to 10143)
+    const targetChain = resolveChain(rawInputs.chainId as any);
+
+    // Inspect accepted payment requirements matching targetChain.caip2
     const accepts = paymentRequired.accepts || [];
-    const supportedNetworks = [MONAD_TESTNET_CAIP2, MONAD_MAINNET_CAIP2, "eip155:10143", "eip155:143"];
 
     const requirement = accepts.find((req: any) =>
-      req.scheme === "exact" && supportedNetworks.includes(req.network)
+      req.scheme === "exact" && req.network === targetChain.caip2
     );
 
     if (!requirement) {
       throw new CommandError(
         "UNSUPPORTED_PAYMENT_NETWORK",
-        `No compatible Monad exact EVM payment requirement found. Server accepts: ${JSON.stringify(accepts)}`,
-        "Ensure the server supports Monad testnet (eip155:10143) or mainnet (eip155:143)."
+        `No compatible exact EVM payment requirement found for ${targetChain.name} (${targetChain.caip2}). Server accepts: ${JSON.stringify(accepts)}`,
+        `Ensure the server supports ${targetChain.name} (${targetChain.caip2}).`
       );
     }
 
@@ -191,16 +192,7 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       );
     }
 
-    // Derive chain ID from CAIP-2 requirement.network regex
-    const caipMatch = /^eip155:(\d+)$/.exec(requirement.network);
-    if (!caipMatch) {
-      throw new CommandError(
-        "UNSUPPORTED_PAYMENT_NETWORK",
-        `Network "${requirement.network}" does not conform to CAIP-2 eip155:<chainId>.`,
-        "Ensure the server provides a valid eip155 CAIP-2 network."
-      );
-    }
-    const resolvedChain = resolveChain(Number(caipMatch[1]));
+    const resolvedChain = targetChain;
 
     // Enrich extra domain info if server didn't include it for USDC
     const isUsdc =

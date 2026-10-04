@@ -1,6 +1,6 @@
 import { parseAbi } from "viem";
 import { z } from "zod";
-import { CommandError } from "./sdk.js";
+import { CommandError } from "@metamask/agent-wallet/plugin";
 
 /**
  * Verified Monad Testnet & Mainnet specifications.
