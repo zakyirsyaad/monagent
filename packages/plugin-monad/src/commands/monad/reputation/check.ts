@@ -1,6 +1,5 @@
 import {
-  MONAD_TESTNET_CHAIN_ID,
-  MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+  resolveChain,
   erc8004ReputationAbi,
 } from "../../../monad.js";
 import {
@@ -17,6 +16,7 @@ export interface CheckReputationResult {
   feedbackCount: number;
   averageScore: number;
   trustTier: "HIGH" | "MEDIUM" | "LOW" | "UNRATED";
+  chainId: number;
 }
 
 export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckReputationResult> {
@@ -45,6 +45,13 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
       message: "Filter by secondary category tag (e.g. task)",
       required: false,
     },
+    chainId: {
+      type: InputFieldType.Text,
+      flag: "chain-id",
+      aliases: ["chainId"],
+      message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
+      required: false,
+    },
   };
 
   static flags = PluginCommand.flagsWithInputs(this.inputs);
@@ -62,15 +69,16 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
     }
     const tag1 = rawInputs.tag1 || "";
     const tag2 = rawInputs.tag2 || "";
+    const chain = resolveChain(rawInputs.chainId as any);
 
-    const client = this.getPublicClient(MONAD_TESTNET_CHAIN_ID);
+    const client = this.getPublicClient(chain.chainId);
     const tokenIdBigInt = BigInt(agentId);
 
     // Official ERC-8004 requires clientAddresses array (reverts if empty without getClients)
     let clientsToQuery: `0x${string}`[] = [];
     try {
       const registeredClients = await client.readContract({
-        address: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+        address: chain.reputationRegistry,
         abi: erc8004ReputationAbi,
         functionName: "getClients",
         args: [tokenIdBigInt],
@@ -88,7 +96,7 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
     if (clientsToQuery.length > 0) {
       try {
         const [count, summaryValue, decimals] = await client.readContract({
-          address: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+          address: chain.reputationRegistry,
           abi: erc8004ReputationAbi,
           functionName: "getSummary",
           args: [tokenIdBigInt, clientsToQuery, tag1, tag2],
@@ -111,7 +119,7 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
     }
 
     io.emit(
-      `Agent #${agentId} Reputation: ${feedbackCount} reviews, Average: ${averageScore.toFixed(1)}, Trust Tier: ${trustTier}`
+      `Agent #${agentId} Reputation on ${chain.name}: ${feedbackCount} reviews, Average: ${averageScore.toFixed(1)}, Trust Tier: ${trustTier}`
     );
 
     return {
@@ -119,6 +127,7 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
       feedbackCount,
       averageScore,
       trustTier,
+      chainId: chain.chainId,
     };
   }
 }

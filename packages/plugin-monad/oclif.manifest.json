@@ -3,7 +3,7 @@
     "monad:pay": {
       "aliases": [],
       "args": {},
-      "description": "Send direct MON or ERC-20 payment on Monad Testnet",
+      "description": "Send direct MON or ERC-20 payment on Monad",
       "flags": {
         "format": {
           "char": "f",
@@ -52,15 +52,25 @@
           "type": "option"
         },
         "token": {
-          "description": "Token symbol (default MON)",
+          "description": "Token symbol (MON, USDC, or 0x<address>)",
           "name": "token",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
         },
         "memo": {
-          "description": "Payment memo or reason",
+          "description": "Payment memo or reason (audit log note, not stored on-chain)",
           "name": "memo",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
@@ -113,13 +123,23 @@
         "token": {
           "type": "text",
           "flag": "token",
-          "message": "Token symbol (default MON)",
+          "message": "Token symbol (MON, USDC, or 0x<address>)",
+          "default": "MON",
           "required": false
         },
         "memo": {
           "type": "text",
           "flag": "memo",
-          "message": "Payment memo or reason",
+          "message": "Payment memo or reason (audit log note, not stored on-chain)",
+          "required": false
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
           "required": false
         }
       },
@@ -140,7 +160,7 @@
           "required": true
         }
       },
-      "description": "Get agent identity details from Monad Testnet ERC-8004 Registry",
+      "description": "Get agent identity details from Monad ERC-8004 Registry",
       "flags": {
         "format": {
           "char": "f",
@@ -253,7 +273,7 @@
     "monad:identity:register": {
       "aliases": [],
       "args": {},
-      "description": "Register an AI Agent identity on Monad Testnet ERC-8004 Registry",
+      "description": "Register an AI Agent identity on Monad ERC-8004 Registry",
       "flags": {
         "format": {
           "char": "f",
@@ -314,6 +334,16 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -370,6 +400,15 @@
           "type": "text",
           "flag": "endpoint",
           "message": "Primary service endpoint URL",
+          "required": false
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
           "required": false
         }
       },
@@ -438,6 +477,16 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -483,6 +532,15 @@
           "type": "text",
           "flag": "resultURI",
           "message": "Deliverable URI or proof hash",
+          "required": false
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
           "required": false
         }
       },
@@ -559,6 +617,16 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -615,6 +683,15 @@
           "type": "text",
           "flag": "deadlineHours",
           "message": "Review and task window in hours (default 24)",
+          "required": false
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
           "required": false
         }
       },
@@ -676,6 +753,16 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -716,6 +803,15 @@
           "message": "Escrow job ID to refund after deadline",
           "required": true,
           "index": 0
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "required": false
         }
       },
       "isESM": true,
@@ -790,6 +886,16 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -841,6 +947,15 @@
           "type": "text",
           "flag": "tag2",
           "message": "Filter by secondary category tag (e.g. task)",
+          "required": false
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
           "required": false
         }
       },
@@ -938,6 +1053,16 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -1012,6 +1137,15 @@
           "type": "text",
           "flag": "feedbackURI",
           "message": "URI pointing to detailed review or task proof",
+          "required": false
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
           "required": false
         }
       },
@@ -1098,6 +1232,16 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "chain-id": {
+          "aliases": [
+            "chainId"
+          ],
+          "description": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "name": "chain-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -1165,6 +1309,15 @@
           "flag": "payer",
           "message": "Payer EVM wallet address to sign payment authorization",
           "required": true
+        },
+        "chainId": {
+          "type": "text",
+          "flag": "chain-id",
+          "aliases": [
+            "chainId"
+          ],
+          "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
+          "required": false
         }
       },
       "isESM": true,
@@ -1177,5 +1330,5 @@
       ]
     }
   },
-  "version": "0.1.1"
+  "version": "0.1.2"
 }

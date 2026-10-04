@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { PublicClient } from "viem";
+import { HttpRequestError, type PublicClient } from "viem";
 import {
   resolveInputs,
   schemaToFlags,
 } from "@metamask/agent-wallet/plugin";
 
-import type { CommandIO, PluginCommandContext, EvmExecutorResult } from "./sdk.js";
+import {
+  type CommandIO,
+  type PluginCommandContext,
+  type EvmExecutorResult,
+  CommandError,
+} from "./sdk.js";
+import {
+  MONAD_CHAINS,
+  MONAD_TESTNET_USDC,
+  MONAD_MAINNET_USDC,
+  resolveChain,
+} from "./monad.js";
 import { MonadPayCommand } from "./commands/monad/pay.js";
 import { MonadIdentityRegisterCommand } from "./commands/monad/identity/register.js";
 import { MonadIdentityGetCommand } from "./commands/monad/identity/get.js";
@@ -18,10 +29,14 @@ import { MonadJobsRefundCommand } from "./commands/monad/jobs/refund.js";
 import { MonadX402PayCommand } from "./commands/monad/x402/pay.js";
 
 function createMockIO(inputs: Record<string, unknown>): CommandIO & { logs: string[] } {
+  const normalizedInputs: Record<string, unknown> = { ...inputs };
+  if ("chainId" in inputs && !("chain-id" in inputs)) {
+    normalizedInputs["chain-id"] = inputs["chainId"];
+  }
   const logs: string[] = [];
   return {
     resolveInputs: async <S extends Record<string, any>>(schema: S) => {
-      return resolveInputs(schema as any, inputs, null);
+      return resolveInputs(schema as any, normalizedInputs, null);
     },
     emit: (msg: string) => logs.push(msg),
     yield: () => {},
@@ -38,6 +53,8 @@ function createMockIO(inputs: Record<string, unknown>): CommandIO & { logs: stri
 function createMockContext(overrides?: {
   executorResult?: EvmExecutorResult;
   contractReads?: Record<string, unknown>;
+  codes?: Record<string, `0x${string}`>;
+  onExecute?: (req: any) => void;
 }): PluginCommandContext {
   const executorResult: EvmExecutorResult = overrides?.executorResult ?? {
     status: "CONFIRMED",
@@ -56,10 +73,17 @@ function createMockContext(overrides?: {
   ).toString("base64")}`;
 
   const mockPublicClient = {
-    readContract: async ({ functionName }: { functionName: string }) => {
+    getCode: async ({ address }: { address: string }) => {
+      if (overrides?.codes && address in overrides.codes) {
+        return overrides.codes[address];
+      }
+      return "0x608060405234801561001057600080fd5b50"; // default mock contract bytecode
+    },
+    readContract: async ({ functionName, address }: { functionName: string; address?: string }) => {
       if (overrides?.contractReads && functionName in overrides.contractReads) {
         return overrides.contractReads[functionName];
       }
+      if (functionName === "decimals") return 18;
       if (functionName === "ownerOf") return "0x9999999999999999999999999999999999999999";
       if (functionName === "getAgentWallet") return "0x8888888888888888888888888888888888888888";
       if (functionName === "tokenURI") return sampleTokenUri;
@@ -101,7 +125,10 @@ function createMockContext(overrides?: {
 
   return {
     publicClient: () => mockPublicClient,
-    walletExecutor: async () => async () => executorResult,
+    walletExecutor: async () => async (req: any) => {
+      overrides?.onExecute?.(req);
+      return executorResult;
+    },
     logger: {
       info: () => {},
       error: () => {},
@@ -125,12 +152,11 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     ];
 
     for (const cmd of commandsWithInputs) {
-      // 1. Host schemaToFlags should not throw and should return flag definitions
       const flags = schemaToFlags(cmd.inputs);
       assert.ok(flags, `schemaToFlags failed for ${cmd.name}`);
       assert.ok(!("undefined" in flags), `schemaToFlags produced an 'undefined' flag for ${cmd.name}`);
+      assert.ok("chain-id" in flags, `--chain-id missing in ${cmd.name}`);
 
-      // 2. Host resolveInputs should resolve mockFlags without MISSING_FLAG
       const resolved = await resolveInputs(cmd.inputs, cmd.mockFlags, null);
       assert.ok(resolved, `resolveInputs failed for ${cmd.name}`);
       for (const [k, v] of Object.entries(cmd.mockFlags)) {
@@ -139,9 +165,71 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     }
   });
 
-  it("executes monad:pay successfully with walletExecutor", async () => {
+  it("R3-1: resolveChain resolves 10143, 143, and throws UNSUPPORTED_CHAIN for invalid chains", () => {
+    assert.equal(resolveChain(undefined).chainId, 10143);
+    assert.equal(resolveChain("").chainId, 10143);
+    assert.equal(resolveChain(10143).chainId, 10143);
+    assert.equal(resolveChain("10143").chainId, 10143);
+    assert.equal(resolveChain(143).chainId, 143);
+    assert.equal(resolveChain("143").chainId, 143);
+
+    assert.throws(
+      () => resolveChain("1"),
+      (err: any) => err instanceof CommandError && err.code === "UNSUPPORTED_CHAIN"
+    );
+    assert.throws(
+      () => resolveChain("999999"),
+      (err: any) => err instanceof CommandError && err.code === "UNSUPPORTED_CHAIN"
+    );
+  });
+
+  it("R3-1: escrow commands fail with ESCROW_NOT_DEPLOYED on mainnet (143) before wallet call", async () => {
+    let walletCalled = false;
+    const ctx = createMockContext({
+      onExecute: () => {
+        walletCalled = true;
+      },
+    });
+
+    const createCmd = new MonadJobsCreateCommand();
+    (createCmd as any).setContext?.(ctx) ?? Object.assign(createCmd, { ctx });
+    await assert.rejects(
+      createCmd.execute(
+        createMockIO({
+          workerAddress: "0x1111111111111111111111111111111111111111",
+          bountyMon: "0.1",
+          taskDescription: "task",
+          chainId: "143",
+        })
+      ),
+      (err: any) => err instanceof CommandError && err.code === "ESCROW_NOT_DEPLOYED"
+    );
+
+    const completeCmd = new MonadJobsCompleteCommand();
+    (completeCmd as any).setContext?.(ctx) ?? Object.assign(completeCmd, { ctx });
+    await assert.rejects(
+      completeCmd.execute(createMockIO({ jobId: "1", chainId: "143" })),
+      (err: any) => err instanceof CommandError && err.code === "ESCROW_NOT_DEPLOYED"
+    );
+
+    const refundCmd = new MonadJobsRefundCommand();
+    (refundCmd as any).setContext?.(ctx) ?? Object.assign(refundCmd, { ctx });
+    await assert.rejects(
+      refundCmd.execute(createMockIO({ jobId: "1", chainId: "143" })),
+      (err: any) => err instanceof CommandError && err.code === "ESCROW_NOT_DEPLOYED"
+    );
+
+    assert.equal(walletCalled, false, "Wallet executor must not be called when escrow is not deployed");
+  });
+
+  it("executes monad:pay with native MON", async () => {
+    let executedTx: any = null;
+    const ctx = createMockContext({
+      onExecute: (req) => {
+        executedTx = req;
+      },
+    });
     const cmd = new MonadPayCommand();
-    const ctx = createMockContext();
     (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
 
     const io = createMockIO({
@@ -155,7 +243,109 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     assert.equal(result.to, "0x4444444444444444444444444444444444444444");
     assert.equal(result.amount, "1.5");
     assert.equal(result.token, "MON");
-    assert.ok(result.transactionHash);
+    assert.equal(executedTx?.transaction?.to, "0x4444444444444444444444444444444444444444");
+    assert.equal(executedTx?.transaction?.value, 1500000000000000000n);
+    assert.equal(executedTx?.transaction?.data, undefined);
+    assert.ok(io.logs.some((l: string) => l.includes("Explorer: https://testnet.monadexplorer.com/tx/")));
+  });
+
+  it("R3-2: executes monad:pay with USDC on testnet (10143) and mainnet (143)", async () => {
+    let executedTx: any = null;
+    const ctx = createMockContext({
+      onExecute: (req) => {
+        executedTx = req;
+      },
+    });
+    const cmd = new MonadPayCommand();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    // Testnet USDC
+    const ioTestnet = createMockIO({
+      to: "0x4444444444444444444444444444444444444444",
+      amount: "10.5",
+      token: "USDC",
+      chainId: "10143",
+    });
+    await cmd.execute(ioTestnet);
+    assert.equal(executedTx?.chainId, 10143);
+    assert.equal(executedTx?.transaction?.to, MONAD_TESTNET_USDC);
+    assert.equal(executedTx?.transaction?.value, 0n);
+    // 10.5 USDC * 10^6 = 10500000 = 0xa037a0
+    assert.ok(executedTx?.transaction?.data?.startsWith("0xa9059cbb")); // transfer(address,uint256)
+    assert.ok(executedTx?.transaction?.data?.includes("a037a0"));
+
+    // Mainnet USDC
+    const ioMainnet = createMockIO({
+      to: "0x4444444444444444444444444444444444444444",
+      amount: "5.0",
+      token: "USDC",
+      chainId: "143",
+    });
+    await cmd.execute(ioMainnet);
+    assert.equal(executedTx?.chainId, 143);
+    assert.equal(executedTx?.transaction?.to, MONAD_MAINNET_USDC);
+    assert.equal(executedTx?.transaction?.value, 0n);
+    assert.ok(ioMainnet.logs.some((l: string) => l.includes("Explorer: https://monadexplorer.com/tx/")));
+  });
+
+  it("R3-2: executes monad:pay with custom ERC-20 contract address and on-chain decimals", async () => {
+    let executedTx: any = null;
+    const customToken = "0x8888888888888888888888888888888888888888";
+    const ctx = createMockContext({
+      contractReads: {
+        decimals: 8,
+      },
+      onExecute: (req) => {
+        executedTx = req;
+      },
+    });
+    const cmd = new MonadPayCommand();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      to: "0x4444444444444444444444444444444444444444",
+      amount: "2.0",
+      token: customToken,
+    });
+    await cmd.execute(io);
+    assert.equal(executedTx?.transaction?.to, customToken);
+    assert.equal(executedTx?.transaction?.value, 0n);
+    // 2.0 * 10^8 = 200000000 = 0xbebc200
+    assert.ok(executedTx?.transaction?.data?.includes("bebc200"));
+  });
+
+  it("R3-2: rejects unsupported tokens and invalid token contracts in monad:pay", async () => {
+    const ctx = createMockContext({
+      codes: {
+        "0x2222222222222222222222222222222222222222": "0x", // empty bytecode
+      },
+    });
+    const cmd = new MonadPayCommand();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    // Unknown symbol
+    await assert.rejects(
+      cmd.execute(
+        createMockIO({
+          to: "0x1111111111111111111111111111111111111111",
+          amount: "1.0",
+          token: "UNKNOWN_TOKEN",
+        })
+      ),
+      (err: any) => err instanceof CommandError && err.code === "UNSUPPORTED_TOKEN"
+    );
+
+    // Empty contract
+    await assert.rejects(
+      cmd.execute(
+        createMockIO({
+          to: "0x1111111111111111111111111111111111111111",
+          amount: "1.0",
+          token: "0x2222222222222222222222222222222222222222",
+        })
+      ),
+      (err: any) => err instanceof CommandError && err.code === "INVALID_TOKEN_CONTRACT"
+    );
   });
 
   it("registers agent identity on Monad ERC-8004 via register(string agentURI)", async () => {
@@ -177,17 +367,19 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     assert.ok(result.agentId);
   });
 
-  it("fetches agent identity and parses official ERC-8004 tokenURI metadata", async () => {
+  it("fetches agent identity and parses official ERC-8004 tokenURI metadata on mainnet (143)", async () => {
     const cmd = new MonadIdentityGetCommand();
     const ctx = createMockContext();
     (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
 
     const io = createMockIO({
       agentId: "1",
+      chainId: "143",
     });
 
     const result = await cmd.execute(io);
     assert.equal(result.agentId, "1");
+    assert.equal(result.chainId, 143);
     assert.equal(result.owner, "0x9999999999999999999999999999999999999999");
     assert.equal(result.walletAddress, "0x8888888888888888888888888888888888888888");
     assert.equal(result.card?.name, "MonadArbitrageAgent");
@@ -201,10 +393,12 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     const io = createMockIO({
       agentId: "1",
       tag1: "trading",
+      chainId: "143",
     });
 
     const result = await cmd.execute(io);
     assert.equal(result.agentId, "1");
+    assert.equal(result.chainId, 143);
     assert.equal(result.feedbackCount, 10);
     assert.equal(result.averageScore, 95);
     assert.equal(result.trustTier, "HIGH");
@@ -223,15 +417,17 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       tag2: "speed",
       endpoint: "https://agent.xyz",
       feedbackURI: "ipfs://review-proof-hash",
+      chainId: "143",
     });
 
     const result = await cmd.execute(io);
     assert.equal(result.feedback.agentId, "1");
     assert.equal(result.feedback.value, 95);
+    assert.equal(result.chainId, 143);
     assert.ok(result.transactionHash);
   });
 
-  it("creates and funds an A2A task escrow on Monad", async () => {
+  it("creates and funds an A2A task escrow on Monad Testnet", async () => {
     const cmd = new MonadJobsCreateCommand();
     const ctx = createMockContext();
     (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
@@ -289,7 +485,6 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
 
     const ctx = createMockContext();
 
-    // Dynamically sign with account so recovered signature strictly matches testPayer
     (ctx as any).walletExecutor = async () => async (req: any) => {
       if (req.kind === "typed-data") {
         signedChainId = req.chainId;
@@ -306,8 +501,6 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     };
     (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
 
-    // Mock global fetch for 402 negotiation with accepts[0] on Base with 1000 USDC ($1000)
-    // and accepts[1] on Monad with 0.01 USDC (10000 base units)
     const originalFetch = globalThis.fetch;
     let callCount = 0;
     globalThis.fetch = async (url: any, init?: any) => {
@@ -319,18 +512,18 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
             accepts: [
               {
                 scheme: "exact",
-                network: "eip155:8453", // Base mainnet - MUST NOT be signed
+                network: "eip155:8453",
                 asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-                amount: "1000000000", // 1000 USDC
+                amount: "1000000000",
                 payTo: "0x9999999999999999999999999999999999999999",
                 maxTimeoutSeconds: 3600,
                 extra: { name: "USD Coin", version: "2" },
               },
               {
                 scheme: "exact",
-                network: "eip155:10143", // Monad testnet - MUST BE SIGNED
+                network: "eip155:10143",
                 asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
-                amount: "10000", // 0.01 USDC
+                amount: "10000",
                 payTo: "0x8888888888888888888888888888888888888888",
                 maxTimeoutSeconds: 3600,
                 extra: { name: "USDC", version: "2" },
@@ -345,7 +538,6 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
           }
         );
       }
-      // Second call has PAYMENT-SIGNATURE
       assert.ok(init?.headers?.["PAYMENT-SIGNATURE"] || init?.headers?.["payment-signature"]);
       return new Response(JSON.stringify({ result: "premium weather prediction data" }), {
         status: 200,
@@ -367,10 +559,209 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       assert.equal(res.paymentDetails?.network, "eip155:10143");
       assert.equal(res.paymentDetails?.amount, "10000");
 
-      // Verify that the executor actually signed Monad requirement (Chain 10143), NOT Base
       assert.equal(signedChainId, 10143);
       assert.equal(signedTypedData?.domain?.chainId, 10143);
       assert.equal(signedTypedData?.message?.value, 10000n);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("R3-4: x402 aborts with PAYER_MISMATCH when recovered signer does not match --payer and never sends payment header", async () => {
+    const { privateKeyToAccount } = await import("viem/accounts");
+    const actualSigner = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const differentPayer = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; // Different account
+
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+
+    (ctx as any).walletExecutor = async () => async (req: any) => {
+      if (req.kind === "typed-data") {
+        const sig = await actualSigner.signTypedData(req.typedData);
+        return {
+          status: "CONFIRMED",
+          signature: sig,
+        };
+      }
+      return { status: "CONFIRMED" };
+    };
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const originalFetch = globalThis.fetch;
+    let fetchCount = 0;
+    globalThis.fetch = async () => {
+      fetchCount++;
+      return new Response(
+        JSON.stringify({
+          x402Version: 2,
+          accepts: [
+            {
+              scheme: "exact",
+              network: "eip155:10143",
+              asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              amount: "1000",
+              payTo: "0x8888888888888888888888888888888888888888",
+              maxTimeoutSeconds: 3600,
+            },
+          ],
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    };
+
+    try {
+      const io = createMockIO({
+        url: "https://api.monad.xyz/paid/service",
+        maxSpend: "5000",
+        payer: differentPayer,
+      });
+
+      await assert.rejects(
+        cmd.execute(io),
+        (err: any) => err instanceof CommandError && err.code === "PAYER_MISMATCH"
+      );
+
+      assert.equal(fetchCount, 1, "Payment request must abort and never send second HTTP request with payment headers");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("R3-4: x402 aborts with SIGNATURE_VERIFICATION_FAILED when signature recovery throws", async () => {
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+
+    (ctx as any).walletExecutor = async () => async (req: any) => {
+      if (req.kind === "typed-data") {
+        return {
+          status: "CONFIRMED",
+          signature: "0xinvalid_signature_bytes",
+        };
+      }
+      return { status: "CONFIRMED" };
+    };
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const originalFetch = globalThis.fetch;
+    let fetchCount = 0;
+    globalThis.fetch = async () => {
+      fetchCount++;
+      return new Response(
+        JSON.stringify({
+          x402Version: 2,
+          accepts: [
+            {
+              scheme: "exact",
+              network: "eip155:10143",
+              asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              amount: "1000",
+              payTo: "0x8888888888888888888888888888888888888888",
+              maxTimeoutSeconds: 3600,
+            },
+          ],
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    };
+
+    try {
+      const io = createMockIO({
+        url: "https://api.monad.xyz/paid/service",
+        maxSpend: "5000",
+        payer: "0x1111111111111111111111111111111111111111",
+      });
+
+      await assert.rejects(
+        cmd.execute(io),
+        (err: any) => err instanceof CommandError && (err.code === "SIGNATURE_VERIFICATION_FAILED" || err.code === "PAYMENT_PAYLOAD_FAILED")
+      );
+
+      assert.equal(fetchCount, 1, "Must never transmit payment header if signature verification fails");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("R3-4: x402 respects --chain-id and selects testnet requirement even when mainnet is accepts[0]", async () => {
+    const { privateKeyToAccount } = await import("viem/accounts");
+    const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const testPayer = account.address;
+
+    const cmd = new MonadX402PayCommand();
+    let signedChainId: number | null = null;
+    let signedTypedData: any = null;
+
+    const ctx = createMockContext();
+
+    (ctx as any).walletExecutor = async () => async (req: any) => {
+      if (req.kind === "typed-data") {
+        signedChainId = req.chainId;
+        signedTypedData = req.typedData;
+        const sig = await account.signTypedData(req.typedData);
+        return {
+          status: "CONFIRMED",
+          signature: sig,
+        };
+      }
+      return { status: "CONFIRMED" };
+    };
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+    globalThis.fetch = async (url: any, init?: any) => {
+      callCount++;
+      if (callCount === 1) {
+        return new Response(
+          JSON.stringify({
+            x402Version: 2,
+            accepts: [
+              {
+                scheme: "exact",
+                network: "eip155:143", // Mainnet requirement as accepts[0]
+                asset: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+                amount: "10000",
+                payTo: "0x9999999999999999999999999999999999999999",
+                maxTimeoutSeconds: 3600,
+                extra: { name: "USDC", version: "2" },
+              },
+              {
+                scheme: "exact",
+                network: "eip155:10143", // Testnet requirement as accepts[1]
+                asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+                amount: "10000",
+                payTo: "0x8888888888888888888888888888888888888888",
+                maxTimeoutSeconds: 3600,
+                extra: { name: "USDC", version: "2" },
+              },
+            ],
+          }),
+          {
+            status: 402,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+      assert.ok(init?.headers?.["PAYMENT-SIGNATURE"] || init?.headers?.["payment-signature"]);
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    try {
+      const io = createMockIO({
+        url: "https://api.monad.xyz/paid/resource",
+        maxSpend: "20000",
+        payer: testPayer,
+        chainId: "10143", // Explicitly request testnet
+      });
+
+      const res = await cmd.execute(io);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.paymentDetails?.network, "eip155:10143");
+      assert.equal(signedChainId, 10143);
+      assert.equal(signedTypedData?.domain?.chainId, 10143);
     } finally {
       globalThis.fetch = originalFetch;
     }

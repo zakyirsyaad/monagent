@@ -1,6 +1,5 @@
 import {
-  MONAD_TESTNET_CHAIN_ID,
-  getErc8004IdentityRegistry,
+  resolveChain,
   erc8004IdentityAbi,
   type MonadAgentCard,
 } from "../../../monad.js";
@@ -18,10 +17,11 @@ export interface GetIdentityResult {
   owner: string;
   walletAddress: string;
   card?: MonadAgentCard;
+  chainId: number;
 }
 
 export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityResult> {
-  static description = "Get agent identity details from Monad Testnet ERC-8004 Registry";
+  static description = "Get agent identity details from Monad ERC-8004 Registry";
   static requiresAuth = false;
   static requiresInit = false;
   protected override readonly pluginCommandId = "monad:identity:get";
@@ -56,16 +56,16 @@ export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityR
         "Provide a valid agent ID number (e.g. 1)."
       );
     }
-    const chainId = Number(rawInputs.chainId || MONAD_TESTNET_CHAIN_ID);
+    const chain = resolveChain(rawInputs.chainId as any);
 
-    const client = this.getPublicClient(chainId);
+    const client = this.getPublicClient(chain.chainId);
     const tokenIdBigInt = BigInt(agentId);
 
     let owner: string;
     let walletAddress: string;
     let tokenUri: string;
 
-    const registryAddress = getErc8004IdentityRegistry(chainId);
+    const registryAddress = chain.identityRegistry;
 
     try {
       [owner, walletAddress, tokenUri] = await Promise.all([
@@ -91,7 +91,7 @@ export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityR
     } catch (err: any) {
       throw new CommandError(
         "AGENT_NOT_FOUND",
-        `Failed to fetch Agent #${agentId} from Monad ERC-8004 Registry (${registryAddress} on chain ${chainId}): ${err?.message || String(err)}`,
+        `Failed to fetch Agent #${agentId} from Monad ERC-8004 Registry (${registryAddress} on chain ${chain.chainId}): ${err?.message || String(err)}`,
         "Verify the agentId exists on the specified chain."
       );
     }
@@ -143,6 +143,7 @@ export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityR
       owner,
       walletAddress,
       card,
+      chainId: chain.chainId,
     };
   }
 }

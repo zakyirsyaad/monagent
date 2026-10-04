@@ -1,7 +1,6 @@
 import { encodeFunctionData, parseEventLogs } from "viem";
 import {
-  MONAD_TESTNET_CHAIN_ID,
-  MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+  resolveChain,
   erc8004IdentityAbi,
   monadAgentCardSchema,
   type MonadAgentCard,
@@ -21,10 +20,11 @@ export interface RegisterIdentityResult {
   agentId: string;
   agentCard: MonadAgentCard;
   registryAddress: string;
+  chainId: number;
 }
 
 export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<RegisterIdentityResult> {
-  static description = "Register an AI Agent identity on Monad Testnet ERC-8004 Registry";
+  static description = "Register an AI Agent identity on Monad ERC-8004 Registry";
   protected override readonly pluginCommandId = "monad:identity:register";
 
   public static readonly inputs: InputSchema = {
@@ -52,12 +52,21 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
       message: "Primary service endpoint URL",
       required: false,
     },
+    chainId: {
+      type: InputFieldType.Text,
+      flag: "chain-id",
+      aliases: ["chainId"],
+      message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
+      required: false,
+    },
   };
 
   static flags = PluginCommand.flagsWithInputs(this.inputs);
 
   async execute(io: CommandIO): Promise<RegisterIdentityResult> {
     const rawInputs = await io.resolveInputs(MonadIdentityRegisterCommand.inputs);
+    const chain = resolveChain(rawInputs.chainId as any);
+
     const cardInput = {
       name: rawInputs.name,
       description: rawInputs.description,
@@ -112,15 +121,15 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
     });
 
     const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
-      chainId: MONAD_TESTNET_CHAIN_ID,
-      to: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+      chainId: chain.chainId,
+      to: chain.identityRegistry,
       data,
     });
 
     // Extract agentId from Registered event log
     let onChainAgentId: string;
     try {
-      const client = this.getPublicClient(MONAD_TESTNET_CHAIN_ID);
+      const client = this.getPublicClient(chain.chainId);
       const receipt = await client.waitForTransactionReceipt({ hash });
       const logs = parseEventLogs({
         abi: erc8004IdentityAbi,
@@ -140,13 +149,15 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
       );
     }
 
-    io.emit(`Agent #${onChainAgentId} registered on Monad ERC-8004 Registry! TxHash: ${hash}`);
+    io.emit(`Agent #${onChainAgentId} registered on ${chain.name} ERC-8004 Registry! TxHash: ${hash}`);
+    io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
 
     return {
       transactionHash: hash,
       agentId: onChainAgentId,
       agentCard: card,
-      registryAddress: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+      registryAddress: chain.identityRegistry,
+      chainId: chain.chainId,
     };
   }
 }

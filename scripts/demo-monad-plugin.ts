@@ -30,7 +30,7 @@ import {
   type CommandIO,
   type PluginCommandContext,
 } from "../packages/plugin-monad/src/index.js";
-import { MONAD_NETWORK } from "../packages/shared/src/monad.ts";
+import { MONAD_NETWORK } from "../packages/plugin-monad/src/monad.ts";
 
 function createConsoleIO(inputs: unknown): CommandIO {
   return {

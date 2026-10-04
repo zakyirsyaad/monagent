@@ -1,7 +1,6 @@
 import { encodeFunctionData } from "viem";
 import {
-  MONAD_TESTNET_CHAIN_ID,
-  MONAD_DEPLOYED_A2A_ESCROW,
+  resolveChain,
   monadEscrowAbi,
   monadCompleteJobSchema,
 } from "../../../monad.js";
@@ -19,6 +18,7 @@ export interface CompleteJobResult {
   jobId: string;
   resultURI: string;
   transactionHash: `0x${string}`;
+  chainId: number;
 }
 
 export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJobResult> {
@@ -39,6 +39,13 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       message: "Deliverable URI or proof hash",
       required: false,
     },
+    chainId: {
+      type: InputFieldType.Text,
+      flag: "chain-id",
+      aliases: ["chainId"],
+      message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
+      required: false,
+    },
   };
 
   static flags = PluginCommand.flagsWithInputs(this.inputs);
@@ -55,8 +62,17 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       );
     }
     const { jobId, resultURI } = parsed.data;
+    const chain = resolveChain(rawInputs.chainId as any);
 
-    io.emit(`Releasing escrow for Job #${jobId}...`);
+    if (!chain.escrow) {
+      throw new CommandError(
+        "ESCROW_NOT_DEPLOYED",
+        `MonadA2AEscrow is not deployed on Monad chain ${chain.chainId}. Escrow is currently available on Monad Testnet (10143).`,
+        "Specify --chain-id 10143 to interact with escrow contracts."
+      );
+    }
+
+    io.emit(`Releasing escrow for Job #${jobId} on ${chain.name}...`);
 
     const data = encodeFunctionData({
       abi: monadEscrowAbi,
@@ -65,17 +81,19 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
     });
 
     const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
-      chainId: MONAD_TESTNET_CHAIN_ID,
-      to: MONAD_DEPLOYED_A2A_ESCROW,
+      chainId: chain.chainId,
+      to: chain.escrow,
       data,
     });
 
-    io.emit(`Job #${jobId} escrow released and settled on Monad! TxHash: ${hash}`);
+    io.emit(`Job #${jobId} escrow released and settled on ${chain.name}! TxHash: ${hash}`);
+    io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
 
     return {
       jobId,
       resultURI,
       transactionHash: hash,
+      chainId: chain.chainId,
     };
   }
 }

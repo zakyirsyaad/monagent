@@ -1,9 +1,10 @@
 import { parseAbi } from "viem";
 import { z } from "zod";
+import { CommandError } from "@metamask/agent-wallet/plugin";
 
 /**
- * Verified Monad Testnet specifications.
- * Pinned for Monad Metropolis Hackathon (Chain ID 10143).
+ * Verified Monad Testnet & Mainnet specifications.
+ * Pinned for Monad Metropolis Hackathon.
  */
 export const MONAD_MAINNET_CHAIN_ID = 143 as const;
 export const MONAD_TESTNET_CHAIN_ID = 10143 as const;
@@ -14,6 +15,8 @@ export const MONAD_TESTNET_RPC_URL = "https://testnet-rpc.monad.xyz/" as const;
 export const MONAD_MAINNET_RPC_URL = "https://rpc.monad.xyz/" as const;
 export const MONAD_TESTNET_EXPLORER_URL = "https://testnet.monadexplorer.com" as const;
 export const MONAD_MAINNET_EXPLORER_URL = "https://monadexplorer.com" as const;
+export const MONAD_TESTNET_MONADSCAN_URL = "https://testnet.monadscan.com" as const;
+export const MONAD_TESTNET_MONADVISION_URL = "https://monadvision.com" as const;
 
 /**
  * Official Canonical ERC-8004 Registries on Monad Testnet (10143) and Mainnet (143)
@@ -28,30 +31,117 @@ export const MONAD_MAINNET_ERC8004_IDENTITY_REGISTRY =
 export const MONAD_MAINNET_ERC8004_REPUTATION_REGISTRY =
   "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" as const;
 
-export function getErc8004IdentityRegistry(chainId: number): `0x${string}` {
-  return chainId === MONAD_MAINNET_CHAIN_ID
-    ? MONAD_MAINNET_ERC8004_IDENTITY_REGISTRY
-    : MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY;
-}
-
-export function getErc8004ReputationRegistry(chainId: number): `0x${string}` {
-  return chainId === MONAD_MAINNET_CHAIN_ID
-    ? MONAD_MAINNET_ERC8004_REPUTATION_REGISTRY
-    : MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY;
-}
-
 /**
- * Official Monad x402 Facilitator & Testnet USDC
+ * Canonical USDC addresses (6 decimals, EIP-712 version "2")
  */
 export const MONAD_TESTNET_USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3" as const;
+export const MONAD_MAINNET_USDC = "0x754704Bc059F8C67012fEd69BC8A327a5aafb603" as const;
 export const MONAD_X402_FACILITATOR_URL = "https://x402-facilitator.molandak.org" as const;
 
 /**
  * Deployed MonadA2AEscrow on Monad Testnet (Chain ID 10143)
- * Features client-only release, non-reentrant logic, zeroed bounty before transfer.
  */
 export const MONAD_DEPLOYED_A2A_ESCROW =
   "0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff" as const;
+export const MONAD_DEPLOYED_AGENT_REGISTRY =
+  "0x91f80eb44d9082d8881b116696cd8840680e3a1c" as const;
+
+export interface MonadChainConfig {
+  chainId: 10143 | 143;
+  name: string;
+  identityRegistry: `0x${string}`;
+  reputationRegistry: `0x${string}`;
+  usdc: `0x${string}`;
+  escrow?: `0x${string}`;
+  rpcUrl: string;
+  explorerUrl: string;
+  caip2: `eip155:10143` | `eip155:143`;
+}
+
+/**
+ * Single per-chain table for Monad Testnet (10143) and Monad Mainnet (143)
+ */
+export const MONAD_CHAINS: Record<10143 | 143, MonadChainConfig> = {
+  10143: {
+    chainId: 10143,
+    name: "Monad Testnet",
+    identityRegistry: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+    reputationRegistry: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+    usdc: MONAD_TESTNET_USDC,
+    escrow: MONAD_DEPLOYED_A2A_ESCROW,
+    rpcUrl: MONAD_TESTNET_RPC_URL,
+    explorerUrl: MONAD_TESTNET_EXPLORER_URL,
+    caip2: MONAD_TESTNET_CAIP2,
+  },
+  143: {
+    chainId: 143,
+    name: "Monad Mainnet",
+    identityRegistry: MONAD_MAINNET_ERC8004_IDENTITY_REGISTRY,
+    reputationRegistry: MONAD_MAINNET_ERC8004_REPUTATION_REGISTRY,
+    usdc: MONAD_MAINNET_USDC,
+    escrow: undefined,
+    rpcUrl: MONAD_MAINNET_RPC_URL,
+    explorerUrl: MONAD_MAINNET_EXPLORER_URL,
+    caip2: MONAD_MAINNET_CAIP2,
+  },
+};
+
+/**
+ * Resolves a chain input (number | string | undefined), defaulting safely to 10143.
+ * Throws CommandError("UNSUPPORTED_CHAIN", ...) for any other chain.
+ */
+export function resolveChain(input?: number | string): MonadChainConfig {
+  if (input === undefined || input === null || input === "") {
+    return MONAD_CHAINS[10143];
+  }
+  const parsed = Number(input);
+  if (parsed === 10143 || parsed === 143) {
+    return MONAD_CHAINS[parsed];
+  }
+  throw new CommandError(
+    "UNSUPPORTED_CHAIN",
+    `Chain ID "${input}" is not supported. MonAgent supports Monad Testnet (10143) and Monad Mainnet (143).`,
+    "Specify --chain-id 10143 or --chain-id 143."
+  );
+}
+
+export function getErc8004IdentityRegistry(chainId: number): `0x${string}` {
+  return resolveChain(chainId).identityRegistry;
+}
+
+export function getErc8004ReputationRegistry(chainId: number): `0x${string}` {
+  return resolveChain(chainId).reputationRegistry;
+}
+
+export const MONAD_NETWORK = Object.freeze({
+  chainId: MONAD_TESTNET_CHAIN_ID,
+  caip2: MONAD_TESTNET_CAIP2,
+  name: "Monad Testnet",
+  nativeCurrency: {
+    name: "Monad",
+    symbol: "MON",
+    decimals: 18,
+  },
+  rpcUrl: MONAD_TESTNET_RPC_URL,
+  explorerUrl: MONAD_TESTNET_EXPLORER_URL,
+  explorers: {
+    monadExplorer: MONAD_TESTNET_EXPLORER_URL,
+    monadScan: MONAD_TESTNET_MONADSCAN_URL,
+    monadVision: MONAD_TESTNET_MONADVISION_URL,
+  },
+  tokens: {
+    USDC: MONAD_TESTNET_USDC,
+  },
+  x402: {
+    facilitatorUrl: MONAD_X402_FACILITATOR_URL,
+    defaultNetwork: MONAD_TESTNET_CAIP2,
+  },
+  erc8004: {
+    identityRegistry: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+    reputationRegistry: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+    agentRegistry: `eip155:10143:${MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY}`,
+  },
+});
 
 /**
  * Official ERC-8004 Identity Registry ABI
@@ -95,6 +185,7 @@ export const monadPaymentInputSchema = z.object({
   amount: z.string().regex(/^\d+(\.\d+)?$/, "Amount must be a positive decimal string"),
   token: z.string().default("MON"),
   memo: z.string().max(256).optional(),
+  chainId: z.string().optional(),
 });
 export type MonadPaymentInput = z.infer<typeof monadPaymentInputSchema>;
 
@@ -116,6 +207,7 @@ export const monadReputationFeedbackSchema = z.object({
   tag2: z.string().max(32).default("task"),
   endpoint: z.string().url().or(z.literal("")).default(""),
   feedbackURI: z.string().url().or(z.literal("")).default(""),
+  chainId: z.string().optional(),
 });
 export type MonadReputationFeedback = z.infer<typeof monadReputationFeedbackSchema>;
 
@@ -124,16 +216,19 @@ export const monadCreateJobSchema = z.object({
   bountyMon: z.string().regex(/^\d+(\.\d+)?$/, "Bounty must be a positive decimal string"),
   taskDescription: z.string().min(1).max(500),
   deadlineHours: z.coerce.number().int().min(1).max(168).default(24),
+  chainId: z.string().optional(),
 });
 export type MonadCreateJob = z.infer<typeof monadCreateJobSchema>;
 
 export const monadCompleteJobSchema = z.object({
   jobId: z.string().regex(/^\d+$/, "jobId must be a numeric string"),
   resultURI: z.string().default("ipfs://settled"),
+  chainId: z.string().optional(),
 });
 export type MonadCompleteJob = z.infer<typeof monadCompleteJobSchema>;
 
 export const monadRefundJobSchema = z.object({
   jobId: z.string().regex(/^\d+$/, "jobId must be a numeric string"),
+  chainId: z.string().optional(),
 });
 export type MonadRefundJob = z.infer<typeof monadRefundJobSchema>;

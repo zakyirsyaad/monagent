@@ -4,14 +4,14 @@ Guidance for Claude Code and coding agents working in this repository.
 
 ## What this repo is
 
-**MonAgent** — MetaMask Agent Wallet Plugin for **Monad** (Testnet Chain ID `10143`).
+**MonAgent** — MetaMask Agent Wallet Plugin for **Monad** (Testnet Chain ID `10143` and Mainnet Chain ID `143`).
 Built for the **Monad Metropolis Hackathon** (evm/accathon, Track: *Best Agent Wallet Plugin* by MetaMask Developer).
 
 This project implements **Agent-to-Agent (A2A) Commerce & Trustless Infrastructure** on Monad:
-- Autonomous Direct Payments in native `MON` and ERC-20 tokens
+- Autonomous Direct Payments in native `MON` and ERC-20 tokens (e.g. `USDC` and custom contract addresses)
 - Trustless Agent Identity via **ERC-8004 Identity Registry** on Monad
 - Immutable On-Chain Feedback via **ERC-8004 Reputation Registry** on Monad
-- A2A Task Escrow & Subcontracting
+- A2A Task Escrow & Subcontracting on Monad Testnet
 - Paid Tool Calls & Micropayments via **x402 protocol**
 
 ---
@@ -22,7 +22,6 @@ This project implements **Agent-to-Agent (A2A) Commerce & Trustless Infrastructu
 packages/
   plugin-monad/     MetaMask Agent Wallet Plugin (@metamask/agent-wallet oclif-plugin)
                     Commands: mm monad:pay, mm monad:identity:*, mm monad:reputation:*, mm monad:jobs:*, mm monad:x402:*
-  shared/           @monagent/shared — Monad chain/network metadata, ABIs, Zod schemas
 skills/
   monad-agent/      Official hackathon skill definition (SKILL.md) for AI agents
 scripts/
@@ -31,21 +30,20 @@ scripts/
 
 ---
 
-## Verified Monad Testnet Facts
+## Verified Monad Network Facts
 
 ```
-chain name          Monad Testnet
-chain ID            10143 (0x279f)
-CAIP-2              eip155:10143
-native currency     MON (18 decimals)
-canonical RPC       https://testnet-rpc.monad.xyz/
-explorer            https://testnet.monadexplorer.com / https://testnet.monadscan.com
-faucet              https://faucet.monad.xyz
-block time          1 second (~10,000 TPS)
-ERC-8004 Registry   0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51 (MonadAgentRegistry)
-A2A Escrow          0x31665c49a8e0565f3e496080a08f089d29bbcaae (MonadA2AEscrow)
-x402 Facilitator    https://x402-facilitator.molandak.org
-Testnet USDC        0x534b2f3A21130d7a60830c2Df862319e593943A3
+resource / chain    Monad Testnet (10143)                         Monad Mainnet (143)
+-------------------------------------------------------------------------------------------------------
+CAIP-2              eip155:10143                                  eip155:143
+native currency     MON (18 decimals)                             MON (18 decimals)
+canonical RPC       https://testnet-rpc.monad.xyz/                https://rpc.monad.xyz/
+explorer            https://testnet.monadexplorer.com             https://monadexplorer.com
+ERC-8004 Identity   0x8004A818BFB912233c491871b3d84c89A494BD9e   0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
+ERC-8004 Reputation 0x8004B663056A597Dffe9eCcC1965A193B7388713   0x8004BAa17C55a88189AE136b182e5fdA19dE9b63
+USDC (6 decimals)   0x534b2f3A21130d7a60830c2Df862319e593943A3   0x754704Bc059F8C67012fEd69BC8A327a5aafb603
+A2A Escrow          0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff   not deployed (ESCROW_NOT_DEPLOYED)
+x402 Facilitator    https://x402-facilitator.molandak.org         https://x402-facilitator.molandak.org
 ```
 
 ---
@@ -53,8 +51,8 @@ Testnet USDC        0x534b2f3A21130d7a60830c2Df862319e593943A3
 ## MetaMask Agent Wallet Plugin Model
 
 1. **Host Context (`this.ctx`)**: Commands extend `PluginCommand` from `@metamask/agent-wallet/plugin`.
-2. **Read Operations**: Queries execute through `this.ctx.publicClient(10143)` (Viem public client).
-3. **Write Operations**: Mutations route through `this.ctx.walletExecutor(io, commandId)`.
+2. **Read Operations**: Queries execute through `this.getPublicClient(chainId)` (proxied host Viem client with fallback to canonical Monad RPC on transport errors).
+3. **Write Operations**: Mutations route through `executeTransaction(this.ctx, io, commandId, params)`.
 4. **Sandboxed Key Security**: Plugins never touch session files, mnemonics, or raw private keys. Every transaction is inspected and approved by the MetaMask transaction protection policy engine.
 
 ---
@@ -62,9 +60,9 @@ Testnet USDC        0x534b2f3A21130d7a60830c2Df862319e593943A3
 ## Commands
 
 ```bash
-npm install                                       # install monorepo dependencies
-npm test --workspace @monagent/plugin-monad      # test MetaMask plugin commands
-npm test --workspace @monagent/shared             # test shared Monad schemas and ABIs
-npm run typecheck                                 # typecheck full monorepo
-npm run demo:local                                # run interactive end-to-end demo
+npm install                                             # install monorepo dependencies
+npm test --workspace @zakyirsyaad/monagent-plugin       # test MetaMask plugin commands
+npm run typecheck                                       # typecheck full repo
+node --test scripts/repository-contents.test.mjs        # verify clean repository contents
+cd contracts && forge test                              # run Solidity tests
 ```

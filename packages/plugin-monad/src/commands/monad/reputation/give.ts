@@ -1,7 +1,6 @@
 import { encodeFunctionData, keccak256, toHex } from "viem";
 import {
-  MONAD_TESTNET_CHAIN_ID,
-  MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+  resolveChain,
   erc8004ReputationAbi,
   monadReputationFeedbackSchema,
   type MonadReputationFeedback,
@@ -20,6 +19,7 @@ export interface GiveReputationResult {
   transactionHash: `0x${string}`;
   feedback: MonadReputationFeedback;
   registryAddress: string;
+  chainId: number;
 }
 
 export class MonadReputationGiveCommand extends BaseMonadPluginCommand<GiveReputationResult> {
@@ -69,6 +69,13 @@ export class MonadReputationGiveCommand extends BaseMonadPluginCommand<GiveReput
       message: "URI pointing to detailed review or task proof",
       required: false,
     },
+    chainId: {
+      type: InputFieldType.Text,
+      flag: "chain-id",
+      aliases: ["chainId"],
+      message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
+      required: false,
+    },
   };
 
   static flags = PluginCommand.flagsWithInputs(this.inputs);
@@ -84,6 +91,7 @@ export class MonadReputationGiveCommand extends BaseMonadPluginCommand<GiveReput
       );
     }
     const feedback = parsed.data;
+    const chain = resolveChain(rawInputs.chainId as any);
 
     const feedbackHash = feedback.feedbackURI
       ? keccak256(toHex(feedback.feedbackURI))
@@ -105,17 +113,19 @@ export class MonadReputationGiveCommand extends BaseMonadPluginCommand<GiveReput
     });
 
     const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
-      chainId: MONAD_TESTNET_CHAIN_ID,
-      to: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+      chainId: chain.chainId,
+      to: chain.reputationRegistry,
       data,
     });
 
-    io.emit(`Feedback submitted for Agent #${feedback.agentId}! Score: ${feedback.value}. TxHash: ${hash}`);
+    io.emit(`Feedback submitted for Agent #${feedback.agentId} on ${chain.name}! Score: ${feedback.value}. TxHash: ${hash}`);
+    io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
 
     return {
       transactionHash: hash,
       feedback,
-      registryAddress: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+      registryAddress: chain.reputationRegistry,
+      chainId: chain.chainId,
     };
   }
 }

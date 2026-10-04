@@ -27,7 +27,7 @@ import {
   MONAD_NETWORK,
   MONAD_DEPLOYED_AGENT_REGISTRY,
   MONAD_DEPLOYED_A2A_ESCROW,
-} from "../packages/shared/src/monad.js";
+} from "../packages/plugin-monad/src/monad.js";
 
 const monadChain = {
   id: MONAD_NETWORK.chainId,

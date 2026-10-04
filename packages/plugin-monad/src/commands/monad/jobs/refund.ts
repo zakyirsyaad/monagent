@@ -1,7 +1,6 @@
 import { encodeFunctionData } from "viem";
 import {
-  MONAD_TESTNET_CHAIN_ID,
-  MONAD_DEPLOYED_A2A_ESCROW,
+  resolveChain,
   monadEscrowAbi,
   monadRefundJobSchema,
 } from "../../../monad.js";
@@ -18,6 +17,7 @@ import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 export interface RefundJobResult {
   jobId: string;
   transactionHash: `0x${string}`;
+  chainId: number;
 }
 
 export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResult> {
@@ -31,6 +31,13 @@ export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResu
       message: "Escrow job ID to refund after deadline",
       required: true,
       index: 0,
+    },
+    chainId: {
+      type: InputFieldType.Text,
+      flag: "chain-id",
+      aliases: ["chainId"],
+      message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
+      required: false,
     },
   };
 
@@ -48,8 +55,17 @@ export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResu
       );
     }
     const { jobId } = parsed.data;
+    const chain = resolveChain(rawInputs.chainId as any);
 
-    io.emit(`Refunding expired escrow for Job #${jobId}...`);
+    if (!chain.escrow) {
+      throw new CommandError(
+        "ESCROW_NOT_DEPLOYED",
+        `MonadA2AEscrow is not deployed on Monad chain ${chain.chainId}. Escrow is currently available on Monad Testnet (10143).`,
+        "Specify --chain-id 10143 to interact with escrow contracts."
+      );
+    }
+
+    io.emit(`Refunding expired escrow for Job #${jobId} on ${chain.name}...`);
 
     const data = encodeFunctionData({
       abi: monadEscrowAbi,
@@ -58,16 +74,18 @@ export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResu
     });
 
     const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
-      chainId: MONAD_TESTNET_CHAIN_ID,
-      to: MONAD_DEPLOYED_A2A_ESCROW,
+      chainId: chain.chainId,
+      to: chain.escrow,
       data,
     });
 
-    io.emit(`Job #${jobId} escrow refunded on Monad! TxHash: ${hash}`);
+    io.emit(`Job #${jobId} escrow refunded on ${chain.name}! TxHash: ${hash}`);
+    io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
 
     return {
       jobId,
       transactionHash: hash,
+      chainId: chain.chainId,
     };
   }
 }
