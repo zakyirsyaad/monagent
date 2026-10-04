@@ -8,6 +8,15 @@ export const MONAD_TESTNET_CHAIN_ID = 10143 as const;
 export const MONAD_TESTNET_CAIP2 = `eip155:${MONAD_TESTNET_CHAIN_ID}` as const;
 export const MONAD_TESTNET_RPC_URL = "https://testnet-rpc.monad.xyz/" as const;
 export const MONAD_TESTNET_EXPLORER_URL = "https://testnet.monadexplorer.com" as const;
+export const MONAD_TESTNET_MONADVISION_URL = "https://monadvision.com" as const;
+export const MONAD_TESTNET_MONADSCAN_URL = "https://testnet.monadscan.com" as const;
+
+/**
+ * Official Monad x402 Facilitator & Testnet USDC
+ * Canonical per docs.monad.xyz/guides/x402 and tooling-and-infra/agentic-payments
+ */
+export const MONAD_TESTNET_USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3" as const;
+export const MONAD_X402_FACILITATOR_URL = "https://x402-facilitator.molandak.org" as const;
 
 /**
  * Official ERC-8004 Registries on Monad Testnet
@@ -31,6 +40,18 @@ export const MONAD_NETWORK = Object.freeze({
   },
   rpcUrl: MONAD_TESTNET_RPC_URL,
   explorerUrl: MONAD_TESTNET_EXPLORER_URL,
+  explorers: {
+    monadExplorer: MONAD_TESTNET_EXPLORER_URL,
+    monadScan: MONAD_TESTNET_MONADSCAN_URL,
+    monadVision: MONAD_TESTNET_MONADVISION_URL,
+  },
+  tokens: {
+    USDC: MONAD_TESTNET_USDC,
+  },
+  x402: {
+    facilitatorUrl: MONAD_X402_FACILITATOR_URL,
+    defaultNetwork: MONAD_TESTNET_CAIP2,
+  },
   erc8004: {
     identityRegistry: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
     reputationRegistry: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
