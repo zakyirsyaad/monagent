@@ -1,20 +1,19 @@
-import { encodeFunctionData, parseAbi } from "viem";
-import { z } from "zod";
+import { encodeFunctionData } from "viem";
 import {
   MONAD_TESTNET_CHAIN_ID,
   MONAD_DEPLOYED_A2A_ESCROW,
-} from "@zakyirsyaad/monagent-shared";
-
-import { BaseMonadPluginCommand, type CommandIO, executeTransaction } from "../../../sdk.js";
-
-const escrowAbi = parseAbi([
-  "function completeJob(uint256 jobId, string calldata resultURI) external",
-]);
-
-const completeJobInputSchema = z.object({
-  jobId: z.string().regex(/^\d+$/, "jobId must be a numeric string"),
-  resultURI: z.string().default("ipfs://settled"),
-});
+  monadEscrowAbi,
+  monadCompleteJobSchema,
+} from "../../../monad.js";
+import {
+  BaseMonadPluginCommand,
+  type CommandIO,
+  CommandError,
+  InputFieldType,
+  type InputSchema,
+  executeTransaction,
+} from "../../../sdk.js";
+import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
 export interface CompleteJobResult {
   jobId: string;
@@ -23,17 +22,44 @@ export interface CompleteJobResult {
 }
 
 export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJobResult> {
-  static override description = "Complete and release a subcontracted A2A task escrow on Monad";
+  static description = "Complete and release a subcontracted A2A task escrow on Monad";
   protected override readonly pluginCommandId = "monad:jobs:complete";
 
-  async execute(io: CommandIO): Promise<CompleteJobResult> {
-    const rawInputs = await io.resolveInputs<unknown>(completeJobInputSchema);
-    const { jobId, resultURI } = completeJobInputSchema.parse(rawInputs);
+  public static readonly inputs: InputSchema = {
+    jobId: {
+      type: InputFieldType.Text,
+      flag: "jobId",
+      message: "Escrow job ID to complete",
+      required: true,
+      index: 0,
+    },
+    resultURI: {
+      type: InputFieldType.Text,
+      flag: "resultURI",
+      message: "Deliverable URI or proof hash",
+      required: false,
+    },
+  };
 
-    io.log(`Releasing escrow for Job #${jobId}...`);
+  static flags = PluginCommand.flagsWithInputs(this.inputs);
+  static args = schemaToArgs(this.inputs);
+
+  async execute(io: CommandIO): Promise<CompleteJobResult> {
+    const rawInputs = await io.resolveInputs(MonadJobsCompleteCommand.inputs);
+    const parsed = monadCompleteJobSchema.safeParse(rawInputs);
+    if (!parsed.success) {
+      throw new CommandError(
+        "INVALID_INPUT",
+        `Invalid complete job input: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        "Provide a numeric jobId and optional resultURI."
+      );
+    }
+    const { jobId, resultURI } = parsed.data;
+
+    io.emit(`Releasing escrow for Job #${jobId}...`);
 
     const data = encodeFunctionData({
-      abi: escrowAbi,
+      abi: monadEscrowAbi,
       functionName: "completeJob",
       args: [BigInt(jobId), resultURI],
     });
@@ -44,7 +70,7 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       data,
     });
 
-    io.log(`Job #${jobId} escrow released and settled on Monad! TxHash: ${hash}`);
+    io.emit(`Job #${jobId} escrow released and settled on Monad! TxHash: ${hash}`);
 
     return {
       jobId,

@@ -1,23 +1,16 @@
-import { parseAbi } from "viem";
-import { z } from "zod";
 import {
   MONAD_TESTNET_CHAIN_ID,
   MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
-} from "@zakyirsyaad/monagent-shared";
-
-import { BaseMonadPluginCommand, type CommandIO } from "../../../sdk.js";
-
-const erc8004ReputationAbi = parseAbi([
-  "function getSummary(uint256 agentId, address[] clientAddresses, string tag1, string tag2) view returns (uint64 count, int128 summaryValue, uint8 summaryValueDecimals)",
-  "function getClients(uint256 agentId) view returns (address[])",
-]);
-
-const checkReputationInputSchema = z.object({
-  agentId: z.string().regex(/^\d+$/, "agentId must be a numeric string"),
-  clientAddresses: z.array(z.string().regex(/^0x[a-fA-F0-9]{40}$/)).optional(),
-  tag1: z.string().default(""),
-  tag2: z.string().default(""),
-});
+  erc8004ReputationAbi,
+} from "../../../monad.js";
+import {
+  BaseMonadPluginCommand,
+  type CommandIO,
+  CommandError,
+  InputFieldType,
+  type InputSchema,
+} from "../../../sdk.js";
+import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
 export interface CheckReputationResult {
   agentId: string;
@@ -25,44 +18,90 @@ export interface CheckReputationResult {
   averageScore: number;
   trustTier: "HIGH" | "MEDIUM" | "LOW" | "UNRATED";
 }
+
 export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckReputationResult> {
-  static override description = "Check peer agent reputation on Monad ERC-8004 Reputation Registry";
+  static description = "Check peer agent reputation on Monad ERC-8004 Reputation Registry";
+  static requiresAuth = false;
+  static requiresInit = false;
   protected override readonly pluginCommandId = "monad:reputation:check";
 
-  async execute(io: CommandIO): Promise<CheckReputationResult> {
-    const rawInputs = await io.resolveInputs<unknown>(checkReputationInputSchema);
-    const { agentId, clientAddresses, tag1, tag2 } = checkReputationInputSchema.parse(rawInputs);
+  public static readonly inputs: InputSchema = {
+    agentId: {
+      type: InputFieldType.Text,
+      flag: "agentId",
+      message: "Agent token ID in ERC-8004 registry",
+      required: true,
+      index: 0,
+    },
+    tag1: {
+      type: InputFieldType.Text,
+      flag: "tag1",
+      message: "Filter by primary category tag (e.g. speed)",
+      required: false,
+    },
+    tag2: {
+      type: InputFieldType.Text,
+      flag: "tag2",
+      message: "Filter by secondary category tag (e.g. task)",
+      required: false,
+    },
+  };
 
-    const client = this.ctx.publicClient(MONAD_TESTNET_CHAIN_ID);
+  static flags = PluginCommand.flagsWithInputs(this.inputs);
+  static args = schemaToArgs(this.inputs);
+
+  async execute(io: CommandIO): Promise<CheckReputationResult> {
+    const rawInputs = await io.resolveInputs(MonadReputationCheckCommand.inputs);
+    const agentId = String(rawInputs.agentId).trim();
+    if (!/^\d+$/.test(agentId)) {
+      throw new CommandError(
+        "INVALID_INPUT",
+        `Invalid agentId "${agentId}". Must be a numeric string.`,
+        "Provide a valid agent ID number (e.g. 1)."
+      );
+    }
+    const tag1 = rawInputs.tag1 || "";
+    const tag2 = rawInputs.tag2 || "";
+
+    const client = this.getPublicClient(MONAD_TESTNET_CHAIN_ID);
     const tokenIdBigInt = BigInt(agentId);
 
-    let clientsToQuery: `0x${string}`[] = (clientAddresses as `0x${string}`[]) || [];
-    if (clientsToQuery.length === 0) {
-      try {
-        const registeredClients = await client.readContract({
-          address: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
-          abi: erc8004ReputationAbi,
-          functionName: "getClients",
-          args: [tokenIdBigInt],
-        });
-        if (registeredClients && registeredClients.length > 0) {
-          clientsToQuery = registeredClients as `0x${string}`[];
-        }
-      } catch {
-        // Contract might not support getClients or has no clients
+    // Official ERC-8004 requires clientAddresses array (reverts if empty without getClients)
+    let clientsToQuery: `0x${string}`[] = [];
+    try {
+      const registeredClients = await client.readContract({
+        address: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+        abi: erc8004ReputationAbi,
+        functionName: "getClients",
+        args: [tokenIdBigInt],
+      });
+      if (registeredClients && Array.isArray(registeredClients)) {
+        clientsToQuery = registeredClients as `0x${string}`[];
       }
+    } catch {
+      // Contract might have no clients or call failed
     }
 
-    const [count, summaryValue, decimals] = await client.readContract({
-      address: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
-      abi: erc8004ReputationAbi,
-      functionName: "getSummary",
-      args: [tokenIdBigInt, clientsToQuery, tag1, tag2],
-    });
+    let feedbackCount = 0;
+    let averageScore = 0;
 
-    const feedbackCount = Number(count);
-    const scoreDivider = 10 ** decimals;
-    const averageScore = feedbackCount > 0 ? Number(summaryValue) / (feedbackCount * scoreDivider) : 0;
+    if (clientsToQuery.length > 0) {
+      try {
+        const [count, summaryValue, decimals] = await client.readContract({
+          address: MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+          abi: erc8004ReputationAbi,
+          functionName: "getSummary",
+          args: [tokenIdBigInt, clientsToQuery, tag1, tag2],
+        });
+
+        feedbackCount = Number(count);
+        const scoreDivider = 10 ** decimals;
+        averageScore =
+          feedbackCount > 0 ? Number(summaryValue) / (feedbackCount * scoreDivider) : 0;
+      } catch {
+        // Fallback to unrated if getSummary reverts
+      }
+    }
 
     let trustTier: "HIGH" | "MEDIUM" | "LOW" | "UNRATED" = "UNRATED";
     if (feedbackCount > 0) {
@@ -70,6 +109,10 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
       else if (averageScore >= 50) trustTier = "MEDIUM";
       else trustTier = "LOW";
     }
+
+    io.emit(
+      `Agent #${agentId} Reputation: ${feedbackCount} reviews, Average: ${averageScore.toFixed(1)}, Trust Tier: ${trustTier}`
+    );
 
     return {
       agentId,

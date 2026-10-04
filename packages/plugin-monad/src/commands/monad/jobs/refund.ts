@@ -1,19 +1,19 @@
-import { encodeFunctionData, parseAbi } from "viem";
-import { z } from "zod";
+import { encodeFunctionData } from "viem";
 import {
   MONAD_TESTNET_CHAIN_ID,
   MONAD_DEPLOYED_A2A_ESCROW,
-} from "@zakyirsyaad/monagent-shared";
-
-import { BaseMonadPluginCommand, type CommandIO, executeTransaction } from "../../../sdk.js";
-
-const escrowAbi = parseAbi([
-  "function refundExpiredJob(uint256 jobId) external",
-]);
-
-const refundJobInputSchema = z.object({
-  jobId: z.string().regex(/^\d+$/, "jobId must be a numeric string"),
-});
+  monadEscrowAbi,
+  monadRefundJobSchema,
+} from "../../../monad.js";
+import {
+  BaseMonadPluginCommand,
+  type CommandIO,
+  CommandError,
+  InputFieldType,
+  type InputSchema,
+  executeTransaction,
+} from "../../../sdk.js";
+import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
 export interface RefundJobResult {
   jobId: string;
@@ -21,17 +21,38 @@ export interface RefundJobResult {
 }
 
 export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResult> {
-  static override description = "Refund an expired subcontracted A2A task escrow on Monad";
+  static description = "Refund an expired subcontracted A2A task escrow on Monad";
   protected override readonly pluginCommandId = "monad:jobs:refund";
 
-  async execute(io: CommandIO): Promise<RefundJobResult> {
-    const rawInputs = await io.resolveInputs<unknown>(refundJobInputSchema);
-    const { jobId } = refundJobInputSchema.parse(rawInputs);
+  public static readonly inputs: InputSchema = {
+    jobId: {
+      type: InputFieldType.Text,
+      flag: "jobId",
+      message: "Escrow job ID to refund after deadline",
+      required: true,
+      index: 0,
+    },
+  };
 
-    io.log(`Refunding expired escrow for Job #${jobId}...`);
+  static flags = PluginCommand.flagsWithInputs(this.inputs);
+  static args = schemaToArgs(this.inputs);
+
+  async execute(io: CommandIO): Promise<RefundJobResult> {
+    const rawInputs = await io.resolveInputs(MonadJobsRefundCommand.inputs);
+    const parsed = monadRefundJobSchema.safeParse(rawInputs);
+    if (!parsed.success) {
+      throw new CommandError(
+        "INVALID_INPUT",
+        `Invalid refund job input: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        "Provide a numeric jobId."
+      );
+    }
+    const { jobId } = parsed.data;
+
+    io.emit(`Refunding expired escrow for Job #${jobId}...`);
 
     const data = encodeFunctionData({
-      abi: escrowAbi,
+      abi: monadEscrowAbi,
       functionName: "refundExpiredJob",
       args: [BigInt(jobId)],
     });
@@ -42,7 +63,7 @@ export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResu
       data,
     });
 
-    io.log(`Job #${jobId} escrow refunded on Monad! TxHash: ${hash}`);
+    io.emit(`Job #${jobId} escrow refunded on Monad! TxHash: ${hash}`);
 
     return {
       jobId,

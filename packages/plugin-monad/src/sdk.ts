@@ -4,8 +4,10 @@ import {
   type PluginCommandContext,
   CommandError,
   InputFieldType,
+  type InputSchema,
 } from "@metamask/agent-wallet/plugin";
-import type { PublicClient } from "viem";
+import { createPublicClient, http, type PublicClient } from "viem";
+import { MONAD_TESTNET_CHAIN_ID, MONAD_TESTNET_RPC_URL, MONAD_MAINNET_CHAIN_ID, MONAD_MAINNET_RPC_URL } from "./monad.js";
 
 export abstract class BaseMonadPluginCommand<TFinal = void> extends PluginCommand<TFinal> {
   static description: string;
@@ -15,6 +17,61 @@ export abstract class BaseMonadPluginCommand<TFinal = void> extends PluginComman
   public setContext(ctx: PluginCommandContext): void {
     this.ctx = ctx;
   }
+
+  /**
+   * Get an EVM PublicClient for reads, preferring the host's publicClient if available,
+   * with fallback to canonical Monad RPC specifically on transport errors (e.g. host Infura
+   * proxy returning 400 "Invalid chainId" when querying testnet 10143).
+   */
+  public getPublicClient(chainId: number = MONAD_TESTNET_CHAIN_ID): PublicClient {
+    const rpcUrl = chainId === MONAD_MAINNET_CHAIN_ID ? MONAD_MAINNET_RPC_URL : MONAD_TESTNET_RPC_URL;
+    const directClient = createPublicClient({
+      transport: http(rpcUrl),
+    }) as unknown as PublicClient;
+
+    if (this.ctx && typeof this.ctx.publicClient === "function") {
+      try {
+        const hostClient = this.ctx.publicClient(chainId);
+        return new Proxy(hostClient, {
+          get(target, prop, receiver) {
+            const orig = Reflect.get(target, prop, receiver);
+            if (typeof orig === "function") {
+              return (...args: any[]) => {
+                const res = orig.apply(target, args);
+                // Only wrap promises to preserve sync behavior of synchronous methods
+                if (res && typeof res.then === "function") {
+                  return res.catch((err: any) => {
+                    const errMsg = String(err?.message || err);
+                    const isTransportError =
+                      errMsg.includes("HTTP request failed") ||
+                      errMsg.includes("Invalid chainId") ||
+                      errMsg.includes("MISSING_PROJECT_ID") ||
+                      errMsg.includes("fetch failed") ||
+                      errMsg.includes("400") ||
+                      errMsg.includes("500");
+
+                    if (isTransportError) {
+                      const fallbackFn = Reflect.get(directClient, prop, directClient);
+                      if (typeof fallbackFn === "function") {
+                        return fallbackFn.apply(directClient, args);
+                      }
+                    }
+                    throw err;
+                  });
+                }
+                return res;
+              };
+            }
+            return orig;
+          },
+        });
+      } catch {
+        // Host resolution threw synchronously (e.g. missing projectId)
+      }
+    }
+
+    return directClient;
+  }
 }
 
 export {
@@ -22,6 +79,7 @@ export {
   type PluginCommandContext,
   CommandError,
   InputFieldType,
+  type InputSchema,
   type PublicClient,
 };
 
@@ -149,4 +207,3 @@ export async function executeSignTypedData(
 
   return res.signature;
 }
-

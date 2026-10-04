@@ -1,45 +1,112 @@
-import { parseEther } from "viem";
+import { x402Client, x402HTTPClient } from "@x402/core/client";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { recoverTypedDataAddress } from "viem";
 import {
   MONAD_TESTNET_CHAIN_ID,
-  monadX402PaymentSchema,
-} from "@zakyirsyaad/monagent-shared";
-
-import { BaseMonadPluginCommand, type CommandIO, CommandError, executeTransaction } from "../../../sdk.js";
+  MONAD_MAINNET_CHAIN_ID,
+  MONAD_TESTNET_CAIP2,
+  MONAD_MAINNET_CAIP2,
+  MONAD_TESTNET_USDC,
+} from "../../../monad.js";
+import {
+  BaseMonadPluginCommand,
+  type CommandIO,
+  CommandError,
+  InputFieldType,
+  type InputSchema,
+  executeSignTypedData,
+} from "../../../sdk.js";
+import { PluginCommand } from "@metamask/agent-wallet/plugin";
 
 export interface X402PayResult {
   url: string;
   statusCode: number;
   response: string;
   paymentSettled: boolean;
-  paymentTransactionHash?: `0x${string}`;
+  paymentDetails?: {
+    scheme: string;
+    network: string;
+    asset: string;
+    amount: string;
+    payTo: string;
+  };
 }
 
 export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
-  static override description = "Execute paid tool/API call over HTTP 402 with Monad micropayments";
+  static description = "Execute paid tool/API call over HTTP 402 with real x402 EVM micropayments";
   protected override readonly pluginCommandId = "monad:x402:pay";
 
+  public static readonly inputs: InputSchema = {
+    url: {
+      type: InputFieldType.Text,
+      flag: "url",
+      message: "Target HTTP 402 paid endpoint URL",
+      required: true,
+    },
+    method: {
+      type: InputFieldType.Text,
+      flag: "method",
+      message: "HTTP method (GET or POST)",
+      default: "GET",
+      required: false,
+    },
+    body: {
+      type: InputFieldType.Text,
+      flag: "body",
+      message: "HTTP request JSON body for POST requests",
+      required: false,
+    },
+    maxSpend: {
+      type: InputFieldType.Text,
+      flag: "maxSpend",
+      aliases: ["max-spend"],
+      message: "Maximum spend limit in token base units (e.g. 1000000 for 1 USDC)",
+      required: false,
+    },
+    payer: {
+      type: InputFieldType.Text,
+      flag: "payer",
+      message: "Payer EVM wallet address to sign payment authorization",
+      required: true,
+    },
+  };
+
+  static flags = PluginCommand.flagsWithInputs(this.inputs);
+
   async execute(io: CommandIO): Promise<X402PayResult> {
-    const rawInputs = await io.resolveInputs<unknown>(monadX402PaymentSchema);
-    const { url, method, body, maxSpendMon } = monadX402PaymentSchema.parse(rawInputs);
+    const rawInputs = await io.resolveInputs(MonadX402PayCommand.inputs);
+    const url = String(rawInputs.url).trim();
+    const method = (rawInputs.method || "GET").toUpperCase();
+    const body = rawInputs.body;
+    const maxSpend = BigInt(rawInputs.maxSpend || "1000000");
+    const rawPayer = String(rawInputs.payer || "").trim();
 
-    io.log(`Executing request to paid API: ${url}`);
+    if (!/^0x[a-fA-F0-9]{40}$/.test(rawPayer) || rawPayer.toLowerCase() === "0x0000000000000000000000000000000000000000") {
+      throw new CommandError(
+        "INVALID_INPUT",
+        `Invalid or missing --payer address "${rawPayer}". A non-zero EVM address is required.`,
+        "Provide your agent wallet address using --payer 0x..."
+      );
+    }
+    const payerAddress = rawPayer as `0x${string}`;
 
-    // Initial probe to check if 402 Payment Required is returned
+    io.emit(`Executing request to paid API: ${url}...`);
+
     let initialRes: Response;
     try {
       initialRes = await fetch(url, {
         method,
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json",
+          ...(body ? { "Content-Type": "application/json" } : {}),
         },
-        body: method === "POST" ? body : undefined,
+        body: method === "POST" && body ? body : undefined,
       });
     } catch (err: any) {
       throw new CommandError(
         "FETCH_FAILED",
         `Failed to reach target URL: ${err?.message || String(err)}`,
-        "Verify the endpoint URL and network connectivity."
+        "Verify endpoint URL and network connectivity."
       );
     }
 
@@ -53,64 +120,166 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       };
     }
 
-    // Parse x402 payment requirements from headers or JSON body
-    let recipient: string | null = null;
-    let paymentAmount: string | null = null;
+    // Server returned 402 Payment Required. Parse x402 headers or JSON body.
+    const client = new x402Client();
+    const httpClient = new x402HTTPClient(client);
 
-    // Check standard headers or parse body
-    const headerRecipient = initialRes.headers.get("x-payment-recipient") || initialRes.headers.get("payee");
-    const headerAmount = initialRes.headers.get("x-payment-amount") || initialRes.headers.get("amount");
+    let paymentRequired: any;
+    try {
+      const headerVal =
+        initialRes.headers.get("PAYMENT-REQUIRED") ||
+        initialRes.headers.get("payment-required");
+      const jsonBody = await initialRes.clone().json().catch(() => null);
 
-    if (headerRecipient && headerAmount) {
-      recipient = headerRecipient;
-      paymentAmount = headerAmount;
-    } else {
+      if (headerVal) {
+        paymentRequired = httpClient.getPaymentRequiredResponse(
+          (name: string) => initialRes.headers.get(name),
+          jsonBody
+        );
+      } else if (jsonBody && typeof jsonBody === "object") {
+        if (jsonBody.x402Version === 1) {
+          paymentRequired = jsonBody;
+        } else if (jsonBody.x402Version === 2 || jsonBody.accepts) {
+          paymentRequired = {
+            x402Version: jsonBody.x402Version || 2,
+            accepts: jsonBody.accepts || [],
+          };
+        } else {
+          throw new Error("Missing x402 accepts field in JSON body");
+        }
+      } else {
+        throw new Error("No PAYMENT-REQUIRED header or JSON body present");
+      }
+    } catch (err: any) {
+      throw new CommandError(
+        "INVALID_402_RESPONSE",
+        `Server returned HTTP 402 but x402 Payment-Required headers/body could not be parsed: ${err?.message || String(err)}`,
+        "Ensure the server implements the x402 protocol specification."
+      );
+    }
+
+    // Inspect accepted payment requirements
+    const accepts = paymentRequired.accepts || [];
+    const supportedNetworks = [MONAD_TESTNET_CAIP2, MONAD_MAINNET_CAIP2, "eip155:10143", "eip155:143"];
+
+    const requirement = accepts.find((req: any) =>
+      req.scheme === "exact" && supportedNetworks.includes(req.network)
+    );
+
+    if (!requirement) {
+      throw new CommandError(
+        "UNSUPPORTED_PAYMENT_NETWORK",
+        `No compatible Monad exact EVM payment requirement found. Server accepts: ${JSON.stringify(accepts)}`,
+        "Ensure the server supports Monad testnet (eip155:10143) or mainnet (eip155:143)."
+      );
+    }
+
+    const requestedAmount = BigInt(requirement.amount);
+    if (requestedAmount > maxSpend) {
+      throw new CommandError(
+        "MAX_SPEND_EXCEEDED",
+        `Requested payment ${requestedAmount} exceeds maximum configured spend limit ${maxSpend}.`,
+        "Increase --maxSpend if you wish to allow higher payment."
+      );
+    }
+
+    // Enrich extra domain info if server didn't include it for testnet USDC
+    if (requirement.asset?.toLowerCase() === MONAD_TESTNET_USDC.toLowerCase() && !requirement.extra) {
+      requirement.extra = {
+        name: "USDC",
+        version: "2",
+      };
+    }
+    if (!requirement.maxTimeoutSeconds) {
+      requirement.maxTimeoutSeconds = 3600;
+    }
+
+    io.emit(
+      `Negotiating x402 payment: ${requirement.amount} (${requirement.asset}) on ${requirement.network} to ${requirement.payTo}...`
+    );
+
+    // Issue 1: createPaymentPayload must sign EXACTLY the inspected requirement,
+    // not accepts[0] which could be on another network or exceed maxSpend.
+    const sanitizedPaymentRequired = {
+      ...paymentRequired,
+      accepts: [requirement],
+    };
+
+    // Build ClientEvmSigner backed by MetaMask walletExecutor
+    let lastTypedData: any = null;
+    let lastSignature: `0x${string}` | null = null;
+
+    const evmSigner = {
+      address: payerAddress,
+      signTypedData: async (typedDataMsg: any) => {
+        lastTypedData = typedDataMsg;
+        const chainId = requirement.network.includes("10143")
+          ? MONAD_TESTNET_CHAIN_ID
+          : MONAD_MAINNET_CHAIN_ID;
+
+        const sig = await executeSignTypedData(this.ctx, io, this.pluginCommandId, {
+          chainId,
+          typedData: {
+            domain: typedDataMsg.domain,
+            types: typedDataMsg.types,
+            primaryType: typedDataMsg.primaryType,
+            message: typedDataMsg.message,
+          },
+        });
+        lastSignature = sig;
+        return sig;
+      },
+    };
+
+    registerExactEvmScheme(client, { signer: evmSigner, networks: [requirement.network] });
+
+    let paymentPayload: any;
+    try {
+      paymentPayload = await httpClient.createPaymentPayload(sanitizedPaymentRequired);
+    } catch (err: any) {
+      throw new CommandError(
+        "PAYMENT_PAYLOAD_FAILED",
+        `Failed to generate x402 payment authorization: ${err?.message || String(err)}`,
+        "Ensure wallet is unlocked and approved to sign EIP-712 payment authorization."
+      );
+    }
+
+    // Issue 2: Verify signer matches payerAddress using recoverTypedDataAddress
+    if (lastTypedData && lastSignature) {
       try {
-        const cloned = initialRes.clone();
-        const json = await cloned.json();
-        recipient = json.recipient || json.payee || json.address || json.accepts?.[0]?.payee || null;
-        paymentAmount = json.amount || json.price || json.accepts?.[0]?.amount || null;
-      } catch {
-        // not json
+        const recovered = await recoverTypedDataAddress({
+          domain: lastTypedData.domain,
+          types: lastTypedData.types,
+          primaryType: lastTypedData.primaryType,
+          message: lastTypedData.message,
+          signature: lastSignature,
+        });
+
+        if (recovered.toLowerCase() !== payerAddress.toLowerCase()) {
+          throw new CommandError(
+            "PAYER_MISMATCH",
+            `Recovered signature address ${recovered} does not match specified --payer ${payerAddress}.`,
+            "Ensure the active wallet in MetaMask matches --payer."
+          );
+        }
+      } catch (err: any) {
+        if (err instanceof CommandError) throw err;
+        // Ignore parsing errors if signature format differs
       }
     }
 
-    if (!recipient || !paymentAmount) {
-      throw new CommandError(
-        "INVALID_402_RESPONSE",
-        "Server returned HTTP 402 Payment Required but did not provide valid payment requirements (recipient and amount).",
-        "Ensure the server implements x402 payment headers or body format."
-      );
-    }
+    const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
 
-    if (Number(paymentAmount) > Number(maxSpendMon)) {
-      throw new CommandError(
-        "MAX_SPEND_EXCEEDED",
-        `Requested payment ${paymentAmount} MON exceeds maximum spend limit of ${maxSpendMon} MON`,
-        "Increase maxSpendMon if you wish to allow higher payment."
-      );
-    }
+    io.emit("x402 Payment authorization signed. Re-submitting request with payment proof...");
 
-    io.log(`Server requested 402 Payment: ${paymentAmount} MON to ${recipient}. Executing on Monad...`);
-
-    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
-      chainId: MONAD_TESTNET_CHAIN_ID,
-      to: recipient as `0x${string}`,
-      value: parseEther(paymentAmount),
-    });
-    io.log(`Payment confirmed on Monad: ${hash}. Retrying paid API request with payment proof...`);
-
-    // Retry with Monad transaction proof
     const paidRes = await fetch(url, {
       method,
       headers: {
         Accept: "application/json",
-        "Content-Type": "application/json",
-        "Authorization": `x402-tx ${hash}`,
-        "X-Payment-Tx": hash,
-        "X-Payment-Chain": String(MONAD_TESTNET_CHAIN_ID),
+        ...(body ? { "Content-Type": "application/json" } : {}),
+        ...paymentHeaders,
       },
-      body: method === "POST" ? body : undefined,
+      body: method === "POST" && body ? body : undefined,
     });
 
     const responseText = await paidRes.text();
@@ -119,8 +288,14 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       url,
       statusCode: paidRes.status,
       response: responseText,
-      paymentSettled: true,
-      paymentTransactionHash: hash,
+      paymentSettled: paidRes.status >= 200 && paidRes.status < 300,
+      paymentDetails: {
+        scheme: requirement.scheme,
+        network: requirement.network,
+        asset: requirement.asset,
+        amount: requirement.amount,
+        payTo: requirement.payTo,
+      },
     };
   }
 }

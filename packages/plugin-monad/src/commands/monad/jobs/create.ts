@@ -1,22 +1,19 @@
-import { encodeFunctionData, parseAbi, parseEther } from "viem";
-import { z } from "zod";
+import { encodeFunctionData, parseEther, parseEventLogs } from "viem";
 import {
   MONAD_TESTNET_CHAIN_ID,
   MONAD_DEPLOYED_A2A_ESCROW,
-} from "@zakyirsyaad/monagent-shared";
-
-import { BaseMonadPluginCommand, type CommandIO, executeTransaction } from "../../../sdk.js";
-
-const escrowAbi = parseAbi([
-  "function createAndFundJob(address worker, string taskDescription, uint256 durationHours) payable returns (uint256 jobId)",
-]);
-
-const createJobInputSchema = z.object({
-  workerAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  bountyMon: z.string().regex(/^\d+(\.\d+)?$/),
-  taskDescription: z.string().min(1).max(500),
-  deadlineHours: z.number().int().min(1).max(168).default(24),
-});
+  monadEscrowAbi,
+  monadCreateJobSchema,
+} from "../../../monad.js";
+import {
+  BaseMonadPluginCommand,
+  type CommandIO,
+  CommandError,
+  InputFieldType,
+  type InputSchema,
+  executeTransaction,
+} from "../../../sdk.js";
+import { PluginCommand } from "@metamask/agent-wallet/plugin";
 
 export interface CreateJobResult {
   jobId: string;
@@ -27,18 +24,56 @@ export interface CreateJobResult {
 }
 
 export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResult> {
-  static override description = "Create and fund a subcontracted A2A task escrow on Monad";
+  static description = "Create and fund a subcontracted A2A task escrow on Monad";
   protected override readonly pluginCommandId = "monad:jobs:create";
 
-  async execute(io: CommandIO): Promise<CreateJobResult> {
-    const rawInputs = await io.resolveInputs<unknown>(createJobInputSchema);
-    const { workerAddress, bountyMon, taskDescription, deadlineHours } =
-      createJobInputSchema.parse(rawInputs);
+  public static readonly inputs: InputSchema = {
+    workerAddress: {
+      type: InputFieldType.Text,
+      flag: "workerAddress",
+      message: "Worker EVM address receiving the escrow bounty",
+      required: true,
+    },
+    bountyMon: {
+      type: InputFieldType.Text,
+      flag: "bountyMon",
+      message: "Bounty amount in native MON (e.g. 0.2)",
+      required: true,
+    },
+    taskDescription: {
+      type: InputFieldType.Text,
+      flag: "taskDescription",
+      message: "Clear deliverable description or specifications",
+      required: true,
+    },
+    deadlineHours: {
+      type: InputFieldType.Text,
+      flag: "deadlineHours",
+      message: "Review and task window in hours (default 24)",
+      required: false,
+    },
+  };
 
-    io.log(`Creating A2A Job for worker ${workerAddress} with bounty ${bountyMon} MON (Deadline: ${deadlineHours}h)`);
+  static flags = PluginCommand.flagsWithInputs(this.inputs);
+
+  async execute(io: CommandIO): Promise<CreateJobResult> {
+    const rawInputs = await io.resolveInputs(MonadJobsCreateCommand.inputs);
+    const parsed = monadCreateJobSchema.safeParse(rawInputs);
+    if (!parsed.success) {
+      throw new CommandError(
+        "INVALID_INPUT",
+        `Invalid job creation input: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        "Provide valid workerAddress, positive bountyMon, and taskDescription."
+      );
+    }
+    const { workerAddress, bountyMon, taskDescription, deadlineHours } = parsed.data;
+
+    io.emit(
+      `Creating A2A Job for worker ${workerAddress} with bounty ${bountyMon} MON (Deadline: ${deadlineHours}h)...`
+    );
 
     const data = encodeFunctionData({
-      abi: escrowAbi,
+      abi: monadEscrowAbi,
       functionName: "createAndFundJob",
       args: [workerAddress as `0x${string}`, taskDescription, BigInt(deadlineHours)],
     });
@@ -50,20 +85,27 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
       data,
     });
 
-    let onChainJobId: string = "1";
-    try {
-      const client = this.ctx.publicClient(MONAD_TESTNET_CHAIN_ID);
-      const receipt = await client.waitForTransactionReceipt({ hash });
-      // JobCreated event signature is topic[0] or first log
-      if (receipt.logs && receipt.logs.length > 0 && receipt.logs[0].topics[1]) {
-        onChainJobId = BigInt(receipt.logs[0].topics[1]).toString();
-      }
-    } catch {
-      // fallback if receipt fetching times out
-      onChainJobId = "1";
+    // Wait for receipt and decode JobCreated event (R2-5: no silent fallback to "1")
+    const client = this.getPublicClient(MONAD_TESTNET_CHAIN_ID);
+    const receipt = await client.waitForTransactionReceipt({ hash });
+
+    const logs = parseEventLogs({
+      abi: monadEscrowAbi,
+      logs: receipt.logs,
+      eventName: "JobCreated",
+    });
+
+    if (logs.length === 0 || logs[0].args.jobId === undefined) {
+      throw new CommandError(
+        "RECEIPT_PARSING_FAILED",
+        `Transaction ${hash} confirmed, but JobCreated event was not found in receipt logs.`,
+        "Check escrow contract address and receipt on Monad Explorer."
+      );
     }
 
-    io.log(`Job escrow funded on Monad! JobId: ${onChainJobId}, Tx: ${hash}`);
+    const onChainJobId = logs[0].args.jobId.toString();
+
+    io.emit(`Job escrow funded on Monad! JobId: ${onChainJobId}, TxHash: ${hash}`);
 
     return {
       jobId: onChainJobId,
