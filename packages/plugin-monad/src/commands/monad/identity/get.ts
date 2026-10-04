@@ -7,7 +7,7 @@ import {
   type MonadAgentCard,
 } from "@zakyirsyaad/monagent-shared";
 
-import { PluginCommand, type CommandIO } from "../../sdk.js";
+import { BaseMonadPluginCommand, type CommandIO } from "../../../sdk.js";
 
 const erc8004IdentityAbi = parseAbi([
   "function getAgent(uint256 agentId) view returns ((string name, string description, address walletAddress, string endpoint, uint256 createdAt, bool active))",
@@ -25,10 +25,9 @@ export interface GetIdentityResult {
   card?: MonadAgentCard;
 }
 
-export class MonadIdentityGetCommand extends PluginCommand<GetIdentityResult> {
+export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityResult> {
   static override description = "Get agent identity details from Monad Testnet ERC-8004 Registry";
   protected override readonly pluginCommandId = "monad:identity:get";
-
   async execute(io: CommandIO): Promise<GetIdentityResult> {
     const rawInputs = await io.resolveInputs<unknown>(getIdentityInputSchema);
     const { agentId } = getIdentityInputSchema.parse(rawInputs);

@@ -18,7 +18,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p ../../tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
     "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
@@ -30,6 +30,7 @@
     "@metamask/agent-wallet": "^6.2.0"
   },
   "devDependencies": {
+    "@metamask/agent-wallet": "^6.2.1",
     "@types/node": "^26.1.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
@@ -120,6 +121,32 @@
       },
       {
         "id": "monad:jobs:create",
+        "capabilities": [
+          "wallet-read",
+          "wallet-submit"
+        ],
+        "dataAccess": [
+          "balances"
+        ],
+        "targetChains": [
+          10143
+        ]
+      },
+      {
+        "id": "monad:jobs:complete",
+        "capabilities": [
+          "wallet-read",
+          "wallet-submit"
+        ],
+        "dataAccess": [
+          "balances"
+        ],
+        "targetChains": [
+          10143
+        ]
+      },
+      {
+        "id": "monad:jobs:refund",
         "capabilities": [
           "wallet-read",
           "wallet-submit"

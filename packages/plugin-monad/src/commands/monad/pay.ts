@@ -4,7 +4,7 @@ import {
   monadPaymentInputSchema,
 } from "@zakyirsyaad/monagent-shared";
 
-import { PluginCommand, type CommandIO } from "../sdk.js";
+import { BaseMonadPluginCommand, type CommandIO, executeTransaction } from "../../sdk.js";
 
 export interface MonadPaymentResult {
   transactionHash: `0x${string}`;
@@ -14,7 +14,7 @@ export interface MonadPaymentResult {
   memo?: string;
 }
 
-export class MonadPayCommand extends PluginCommand<MonadPaymentResult> {
+export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> {
   static override description = "Send direct MON or ERC-20 payment on Monad Testnet";
   protected override readonly pluginCommandId = "monad:pay";
 
@@ -28,22 +28,16 @@ export class MonadPayCommand extends PluginCommand<MonadPaymentResult> {
 
     const valueInWei = parseEther(amount);
 
-    const executor = this.ctx.walletExecutor(io, this.pluginCommandId);
-    const result = await executor({
-      kind: "transaction",
+    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: MONAD_TESTNET_CHAIN_ID,
-      to,
+      to: to as `0x${string}`,
       value: valueInWei,
     });
 
-    if (result.status !== "success" || !result.hash) {
-      throw new Error(`Failed to send MON payment: status ${result.status}`);
-    }
-
-    io.log(`Paid ${amount} MON to ${to}. TxHash: ${result.hash}`);
+    io.log(`Paid ${amount} MON to ${to}. TxHash: ${hash}`);
 
     return {
-      transactionHash: result.hash,
+      transactionHash: hash,
       to,
       amount,
       token,

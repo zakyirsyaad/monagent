@@ -6,7 +6,7 @@ import {
   type MonadAgentCard,
 } from "@zakyirsyaad/monagent-shared";
 
-import { PluginCommand, type CommandIO } from "../../sdk.js";
+import { BaseMonadPluginCommand, type CommandIO, executeTransaction } from "../../../sdk.js";
 
 const erc8004IdentityAbi = parseAbi([
   "function registerAgent(string name, string description, address walletAddress, string endpoint) returns (uint256 agentId)",
@@ -20,7 +20,7 @@ export interface RegisterIdentityResult {
   registryAddress: string;
 }
 
-export class MonadIdentityRegisterCommand extends PluginCommand<RegisterIdentityResult> {
+export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<RegisterIdentityResult> {
   static override description = "Register an AI Agent identity on Monad Testnet ERC-8004 Registry";
   protected override readonly pluginCommandId = "monad:identity:register";
 
@@ -41,22 +41,16 @@ export class MonadIdentityRegisterCommand extends PluginCommand<RegisterIdentity
       ],
     });
 
-    const executor = this.ctx.walletExecutor(io, this.pluginCommandId);
-    const result = await executor({
-      kind: "transaction",
+    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: MONAD_TESTNET_CHAIN_ID,
       to: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
       data,
     });
 
-    if (result.status !== "success" || !result.hash) {
-      throw new Error(`Failed to register agent identity on Monad: status ${result.status}`);
-    }
-
-    io.log(`Agent identity registered on Monad! TxHash: ${result.hash}`);
+    io.log(`Agent identity registered on Monad! TxHash: ${hash}`);
 
     return {
-      transactionHash: result.hash,
+      transactionHash: hash,
       agentCard: card,
       registryAddress: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
     };

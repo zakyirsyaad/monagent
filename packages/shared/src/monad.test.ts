@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  MONAD_MAINNET_CHAIN_ID,
   MONAD_TESTNET_CHAIN_ID,
   MONAD_TESTNET_CAIP2,
-  MONAD_TESTNET_RPC_URL,
-  MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
-  MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
+  MONAD_OFFICIAL_TESTNET_ERC8004_IDENTITY,
+  MONAD_OFFICIAL_TESTNET_ERC8004_REPUTATION,
+  MONAD_DEPLOYED_AGENT_REGISTRY,
   MONAD_NETWORK,
   monadAgentCardSchema,
   monadPaymentInputSchema,
@@ -16,14 +17,19 @@ import {
 describe("Monad Testnet domain specifications", () => {
   it("has exact verified parameters for Monad Testnet", () => {
     assert.equal(MONAD_TESTNET_CHAIN_ID, 10143);
+    assert.equal(MONAD_MAINNET_CHAIN_ID, 143);
     assert.equal(MONAD_TESTNET_CAIP2, "eip155:10143");
     assert.equal(
-      MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
-      "0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51"
+      MONAD_OFFICIAL_TESTNET_ERC8004_IDENTITY,
+      "0x8004A818BFB912233c491871b3d84c89A494BD9e"
     );
     assert.equal(
-      MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
-      "0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51"
+      MONAD_OFFICIAL_TESTNET_ERC8004_REPUTATION,
+      "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+    );
+    assert.equal(
+      MONAD_DEPLOYED_AGENT_REGISTRY,
+      "0x91f80eb44d9082d8881b116696cd8840680e3a1c"
     );
     assert.equal(MONAD_NETWORK.nativeCurrency.symbol, "MON");
     assert.equal(MONAD_NETWORK.nativeCurrency.decimals, 18);

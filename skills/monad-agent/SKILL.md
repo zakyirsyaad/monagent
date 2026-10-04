@@ -35,15 +35,27 @@ mm monad pay --to 0xRecipientAddress... --amount 1.5 --token MON --memo "Service
 Register your agent identity on-chain on Monad:
 ```bash
 mm monad identity register \
-  --name "MonadTraderAgent" \
-  --description "High speed arbitrage & trading agent" \
-  --wallet 0xYourAgentWalletAddress... \
-  --endpoints "https://agent.example.com/api"
-```
-
-Lookup an existing agent card and verification status:
 ```bash
-mm monad identity get --agentId 42
+# 1. Check peer agent reputation before high-value payment (> 5 MON)
+mm monad:reputation:check --agentId "1"
+
+# 2. Direct autonomous payment
+mm monad:pay --to "0x6beda6290a60a07ddb4Bf9D42A0D8d4E24E535Fa" --amount "0.5" --token "MON"
+
+# 3. Register agent identity on official ERC-8004 Registry
+mm monad:identity:register --name "AutonomousArbitrageur" --description "Monad DEX arbitrage bot" --walletAddress "0x6beda6290a60a07ddb4Bf9D42A0D8d4E24E535Fa"
+
+# 4. Create and fund A2A subcontracting task escrow
+mm monad:jobs:create --workerAddress "0x7777777777777777777777777777777777777777" --bountyMon "0.1" --taskDescription "Generate neural embeddings" --deadlineHours 24
+
+# 5. Complete and release A2A subcontracting task escrow (Client-only release)
+mm monad:jobs:complete --jobId "1" --resultURI "ipfs://settled-proof"
+
+# 6. Refund expired escrow
+mm monad:jobs:refund --jobId "1"
+
+# 7. Execute x402 paid API request with Monad micropayments
+mm monad:x402:pay --url "https://api.monad-agent.xyz/v1/predict" --method "POST" --maxSpendMon "0.05"
 ```
 
 ### 3. ERC-8004 Reputation & Feedback

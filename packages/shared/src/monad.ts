@@ -4,13 +4,17 @@ import { z } from "zod";
  * Verified Monad Testnet specifications.
  * Pinned for Monad Metropolis Hackathon (Chain ID 10143).
  */
+export const MONAD_MAINNET_CHAIN_ID = 143 as const;
 export const MONAD_TESTNET_CHAIN_ID = 10143 as const;
+export const MONAD_MAINNET_CAIP2 = `eip155:${MONAD_MAINNET_CHAIN_ID}` as const;
 export const MONAD_TESTNET_CAIP2 = `eip155:${MONAD_TESTNET_CHAIN_ID}` as const;
+
 export const MONAD_TESTNET_RPC_URL = "https://testnet-rpc.monad.xyz/" as const;
+export const MONAD_MAINNET_RPC_URL = "https://rpc.monad.xyz/" as const;
 export const MONAD_TESTNET_EXPLORER_URL = "https://testnet.monadexplorer.com" as const;
+export const MONAD_MAINNET_EXPLORER_URL = "https://monadexplorer.com" as const;
 export const MONAD_TESTNET_MONADVISION_URL = "https://monadvision.com" as const;
 export const MONAD_TESTNET_MONADSCAN_URL = "https://testnet.monadscan.com" as const;
-
 /**
  * Official Monad x402 Facilitator & Testnet USDC
  * Canonical per docs.monad.xyz/guides/x402 and tooling-and-infra/agentic-payments
@@ -19,18 +23,36 @@ export const MONAD_TESTNET_USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3" a
 export const MONAD_X402_FACILITATOR_URL = "https://x402-facilitator.molandak.org" as const;
 
 /**
+ * Official Canonical ERC-8004 Registries on Monad Testnet (10143) and Mainnet (143)
+ * Verified on-chain via eth_getCode & cast call
+ */
+export const MONAD_OFFICIAL_TESTNET_ERC8004_IDENTITY =
+  "0x8004A818BFB912233c491871b3d84c89A494BD9e" as const;
+export const MONAD_OFFICIAL_TESTNET_ERC8004_REPUTATION =
+  "0x8004B663056A597Dffe9eCcC1965A193B7388713" as const;
+
+export const MONAD_OFFICIAL_MAINNET_ERC8004_IDENTITY =
+  "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as const;
+export const MONAD_OFFICIAL_MAINNET_ERC8004_REPUTATION =
+  "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" as const;
+
+/**
  * Deployed MonadAgentRegistry and MonadA2AEscrow on Monad Testnet (Chain ID 10143)
  */
 export const MONAD_DEPLOYED_AGENT_REGISTRY =
-  "0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51" as const;
+  "0x91f80eb44d9082d8881b116696cd8840680e3a1c" as const;
 export const MONAD_DEPLOYED_A2A_ESCROW =
-  "0x31665c49a8e0565f3e496080a08f089d29bbcaae" as const;
+  "0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff" as const;
 
-export const MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY = MONAD_DEPLOYED_AGENT_REGISTRY;
-export const MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY = MONAD_DEPLOYED_AGENT_REGISTRY;
+export const MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY = MONAD_OFFICIAL_TESTNET_ERC8004_IDENTITY;
+export const MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY = MONAD_OFFICIAL_TESTNET_ERC8004_REPUTATION;
 export const MONAD_TESTNET_ERC8004_AGENT_REGISTRY =
-  `eip155:10143:${MONAD_DEPLOYED_AGENT_REGISTRY}` as const;
+  `eip155:10143:${MONAD_OFFICIAL_TESTNET_ERC8004_IDENTITY}` as const;
 
+export const MONAD_MAINNET_ERC8004_IDENTITY_REGISTRY = MONAD_OFFICIAL_MAINNET_ERC8004_IDENTITY;
+export const MONAD_MAINNET_ERC8004_REPUTATION_REGISTRY = MONAD_OFFICIAL_MAINNET_ERC8004_REPUTATION;
+export const MONAD_MAINNET_ERC8004_AGENT_REGISTRY =
+  `eip155:143:${MONAD_OFFICIAL_MAINNET_ERC8004_IDENTITY}` as const;
 export const MONAD_NETWORK = Object.freeze({
   chainId: MONAD_TESTNET_CHAIN_ID,
   caip2: MONAD_TESTNET_CAIP2,

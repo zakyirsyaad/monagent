@@ -55,12 +55,14 @@ contract MonadA2AEscrow {
     function completeJob(uint256 jobId, string calldata resultURI) external {
         Job storage job = jobs[jobId];
         require(job.status == JobStatus.Funded, "Job not funded");
-        require(msg.sender == job.client || msg.sender == job.worker, "Unauthorized");
+        require(msg.sender == job.client, "Only client can release escrow");
 
+        uint256 payout = job.bounty;
+        job.bounty = 0;
         job.status = JobStatus.Completed;
         job.resultURI = resultURI;
 
-        (bool sent, ) = payable(job.worker).call{value: job.bounty}("");
+        (bool sent, ) = payable(job.worker).call{value: payout}("");
         require(sent, "Payment transfer failed");
 
         emit JobCompleted(jobId, resultURI);
@@ -72,11 +74,12 @@ contract MonadA2AEscrow {
         require(block.timestamp > job.deadline, "Deadline not passed");
         require(msg.sender == job.client, "Only client can refund");
 
+        uint256 refundAmount = job.bounty;
+        job.bounty = 0;
         job.status = JobStatus.Refunded;
 
-        (bool sent, ) = payable(job.client).call{value: job.bounty}("");
+        (bool sent, ) = payable(job.client).call{value: refundAmount}("");
         require(sent, "Refund transfer failed");
-
         emit JobRefunded(jobId);
     }
 

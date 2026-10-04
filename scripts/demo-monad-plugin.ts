@@ -73,6 +73,16 @@ function createDemoContext(liveAccount?: PrivateKeyAccount): PluginCommandContex
     readContract: async ({ functionName }: { functionName: string }) => {
       if (functionName === "ownerOf") return "0x9876543210987654321098765432109876543210";
       if (functionName === "getAgentWallet") return "0x1234567890123456789012345678901234567890";
+      if (functionName === "getAgent") {
+        return {
+          name: "MonadAlphaWorker",
+          description: "High-throughput specialized Monad analytics agent",
+          walletAddress: "0x1234567890123456789012345678901234567890",
+          endpoint: "https://alpha-agent.monad.xyz/api",
+          createdAt: BigInt(Date.now()),
+          active: true,
+        };
+      }
       if (functionName === "tokenURI") {
         const card = {
           name: "MonadAlphaWorker",
@@ -93,19 +103,20 @@ function createDemoContext(liveAccount?: PrivateKeyAccount): PluginCommandContex
 
   return {
     publicClient: () => mockPublicClient,
-    walletExecutor: (_io, commandId) => async (req) => {
+    walletExecutor: async (_io: CommandIO, commandId: string) => async (req: any) => {
       console.log(`  [MetaMask Policy Engine] Evaluated & Approved request for ${commandId}`);
 
       // If live wallet configured and request is a native payment transaction, broadcast live!
-      if (walletClient && req.kind === "transaction" && (!req.data || req.data === "0x")) {
+      const tx = req.transaction || req;
+      if (walletClient && req.kind === "transaction" && (!tx.data || tx.data === "0x")) {
         try {
           const liveHash = await walletClient.sendTransaction({
-            to: req.to as `0x${string}`,
-            value: req.value,
+            to: tx.to as `0x${string}`,
+            value: tx.value,
           });
           console.log(`  ⚡ LIVE ON-CHAIN BROADCAST: Confirmed on Monad Testnet!`);
           return {
-            status: "success",
+            status: "CONFIRMED",
             hash: liveHash,
           };
         } catch (e: unknown) {
@@ -116,14 +127,14 @@ function createDemoContext(liveAccount?: PrivateKeyAccount): PluginCommandContex
 
       const mockHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}` as `0x${string}`;
       return {
-        status: "success",
+        status: "CONFIRMED",
         hash: mockHash,
       };
     },
     logger: {
-      info: (msg) => console.log(`[Plugin Log] ${msg}`),
-      error: (msg) => console.error(`[Plugin Error] ${msg}`),
-      warn: (msg) => console.warn(`[Plugin Warn] ${msg}`),
+      info: (msg: string) => console.log(`[Plugin Log] ${msg}`),
+      error: (msg: string) => console.error(`[Plugin Error] ${msg}`),
+      warn: (msg: string) => console.warn(`[Plugin Warn] ${msg}`),
     },
   };
 }

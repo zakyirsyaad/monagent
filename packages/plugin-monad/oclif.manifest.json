@@ -49,6 +49,20 @@
       "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
       "aliases": []
+    },
+    "monad:jobs:complete": {
+      "id": "monad:jobs:complete",
+      "description": "Complete and release a subcontracted A2A task escrow on Monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
+      "pluginType": "core",
+      "aliases": []
+    },
+    "monad:jobs:refund": {
+      "id": "monad:jobs:refund",
+      "description": "Refund an expired subcontracted A2A task escrow on Monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
+      "pluginType": "core",
+      "aliases": []
     }
   }
 }

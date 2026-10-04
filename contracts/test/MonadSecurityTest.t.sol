@@ -137,16 +137,25 @@ contract MonadComprehensiveSecurityTest is Test {
         escrow.createAndFundJob{value: 1 ether}(address(0), "Task with zero worker", 24);
     }
 
+    function test_Negative_Escrow_WorkerCannotSelfComplete_Reverts() public {
+        vm.prank(client);
+        uint256 jobId = escrow.createAndFundJob{value: 1 ether}(worker, "Task", 24);
+
+        // Worker attempts to release escrow to themselves without client approval
+        vm.prank(worker);
+        vm.expectRevert("Only client can release escrow");
+        escrow.completeJob(jobId, "worker_self_release");
+    }
+
     function test_Negative_Escrow_UnauthorizedComplete_Reverts() public {
         vm.prank(client);
         uint256 jobId = escrow.createAndFundJob{value: 1 ether}(worker, "Task", 24);
 
         // Attacker attempts to complete job
         vm.prank(attacker);
-        vm.expectRevert("Unauthorized");
+        vm.expectRevert("Only client can release escrow");
         escrow.completeJob(jobId, "hacked_result");
     }
-
     function test_Negative_Escrow_DoubleComplete_Reverts() public {
         vm.prank(client);
         uint256 jobId = escrow.createAndFundJob{value: 1 ether}(worker, "Task", 24);
@@ -249,7 +258,7 @@ contract MonadComprehensiveSecurityTest is Test {
 
         uint256 workerBefore = worker.balance;
 
-        vm.prank(worker); // Worker completes job
+        vm.prank(client); // Client approves and releases completed escrow
         escrow.completeJob(jobId, "fuzz_result");
 
         assertEq(worker.balance, workerBefore + bounty);

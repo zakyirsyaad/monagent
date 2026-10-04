@@ -73,8 +73,8 @@ npm run typecheck
 - **Network**: Monad Testnet (`Chain ID 10143`)
 - **RPC**: `https://testnet-rpc.monad.xyz/`
 - **MonadAgentRegistry (ERC-8004 Identity & Reputation)**:
-  [`0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51`](https://testnet.monadexplorer.com/address/0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51)
+  [`0x91f80eb44d9082d8881b116696cd8840680e3a1c`](https://testnet.monadexplorer.com/address/0x91f80eb44d9082d8881b116696cd8840680e3a1c)
 - **MonadA2AEscrow (A2A Subcontracting Escrow)**:
-  [`0x31665c49a8e0565f3e496080a08f089d29bbcaae`](https://testnet.monadexplorer.com/address/0x31665c49a8e0565f3e496080a08f089d29bbcaae)
+  [`0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff`](https://testnet.monadexplorer.com/address/0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff)
 - **Official x402 Facilitator**: `https://x402-facilitator.molandak.org`
 - **Testnet USDC**: `0x534b2f3A21130d7a60830c2Df862319e593943A3`
