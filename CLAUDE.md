@@ -54,6 +54,9 @@ x402 Facilitator    https://x402-facilitator.molandak.org         https://x402-f
 2. **Read Operations**: Queries execute through `this.getPublicClient(chainId)` (proxied host Viem client with fallback to canonical Monad RPC on transport errors).
 3. **Write Operations**: Mutations route through `executeTransaction(this.ctx, io, commandId, params)`.
 4. **Sandboxed Key Security**: Plugins never touch session files, mnemonics, or raw private keys. Every transaction is inspected and approved by the MetaMask transaction protection policy engine.
+5. **Inputs**: Each command declares a host `InputSchema` (`InputFieldType.Text`, `flag`, `message`), sets `static flags = PluginCommand.flagsWithInputs(inputs)`, resolves with `io.resolveInputs(inputs)`, then validates with Zod. Never pass a Zod schema to `io.resolveInputs`; the host throws `MISSING_FLAG`. Text fields have no `default` in the host schema, so defaults belong in Zod or code.
+6. **Chains**: Read every address from `MONAD_CHAINS` via `resolveChain(rawInputs.chainId)` in `packages/plugin-monad/src/monad.ts`. Default is testnet `10143`; anything except 10143/143 throws `UNSUPPORTED_CHAIN`.
+7. **Host compatibility**: `mm.minCliVersion` and the peer range are `^6.2.0 || ^7.0.0`. The host's `CommandIO` type resolves to `any` in this repo, so typecheck doesn't catch host API misuse; the unit test that runs the host's real `resolveInputs`/`schemaToFlags` does.
 
 ---
 
@@ -63,6 +66,10 @@ x402 Facilitator    https://x402-facilitator.molandak.org         https://x402-f
 npm install                                             # install monorepo dependencies
 npm test --workspace @zakyirsyaad/monagent-plugin       # test MetaMask plugin commands
 npm run typecheck                                       # typecheck full repo
+npx tsx --test contracts/test/*.test.ts                 # contract simulation tests
 node --test scripts/repository-contents.test.mjs        # verify clean repository contents
 cd contracts && forge test                              # run Solidity tests
+npm run build --workspace @zakyirsyaad/monagent-plugin  # emit dist/ and regenerate oclif.manifest.json
 ```
+
+Publishing: bump `packages/plugin-monad/package.json` version, build, then `npm publish --workspace @zakyirsyaad/monagent-plugin`. A new version can 404 for a minute or two while npm processes it.
