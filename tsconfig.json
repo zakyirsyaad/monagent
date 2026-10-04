@@ -4,14 +4,13 @@
     "noEmit": true
   },
   "include": [
-    "apps/**/*.ts",
-    "apps/**/*.tsx",
-    "packages/**/*.ts",
-    "packages/**/*.tsx",
+    "packages/plugin-monad/src/**/*.ts",
+    "packages/shared/src/**/*.ts",
     "scripts/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "contracts"
+    "contracts",
+    "apps"
   ]
 }

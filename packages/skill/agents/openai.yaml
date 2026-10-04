@@ -1,3 +1,0 @@
-display_name: AgentPay
-short_description: Owner-authorized cross-chain payments for AI agents.
-default_prompt: Use AgentPay Arc to set up a Circle Agent Wallet on Arc Testnet, check its autonomous USDC budget, execute the requested Arc tool exactly once, and report the resulting receipt or activity status.
