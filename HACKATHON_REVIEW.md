@@ -1,5 +1,91 @@
 # Hackathon Review — MonAgent (Best Agent Wallet Plugin)
 
+## Round 3 — R2-6 scope (mainnet, tokens, cleanup)
+
+Baseline: `main` at `bd6f5a1` (PR #2 merged), estimated **~7.5 / 10**. Round 2 left the plugin runnable
+in `mm` on testnet. This round makes it credible on **Monad mainnet (143)**, which the hackathon lists,
+and removes the leftovers from the previous project that judges will see in the repo.
+
+Facts checked on-chain for this round (2026-10-04):
+
+| | Testnet (10143) | Mainnet (143) |
+|---|---|---|
+| ERC-8004 Identity | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
+| ERC-8004 Reputation | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` |
+| USDC (6 decimals, EIP-712 version `"2"`) | `0x534b2f3A21130d7a60830c2Df862319e593943A3` | `0x754704Bc059F8C67012fEd69BC8A327a5aafb603` |
+| MonadA2AEscrow | `0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff` | not deployed |
+
+### R3-1. Per-chain config and `--chain-id` on every command
+- Today all 9 commands import `MONAD_TESTNET_CHAIN_ID`; only `identity get` takes `--chain-id`.
+- Add one table in `packages/plugin-monad/src/monad.ts`, e.g.
+  `MONAD_CHAINS: Record<10143 | 143, { identityRegistry, reputationRegistry, escrow?: Address, usdc, rpcUrl, explorerUrl, caip2 }>`,
+  and a `resolveChain(input)` helper that rejects anything else with `CommandError("UNSUPPORTED_CHAIN", …)`.
+- Every command gets `--chain-id` (default `10143`, so testnet stays the safe default) and reads addresses
+  from the table. `getErc8004*Registry()` can be replaced by this table.
+- Escrow commands on a chain with no `escrow` entry throw `ESCROW_NOT_DEPLOYED` before any wallet call.
+  Optional: deploy the escrow to 143 with `scripts/deploy-monad-contracts.ts` and fill in the address.
+- `package.json` → `mm.commands[].targetChains`: `[10143, 143]` for every command that supports both
+  (only `[10143]` for escrow commands if it stays testnet-only).
+- Output an explorer link (`${explorerUrl}/tx/${hash}`) for every write command.
+
+### R3-2. ERC-20 in `monad pay`
+- `pay` advertises ERC-20 but rejects anything except `MON`.
+- Accept `--token MON | USDC | 0x<address>`. `USDC` maps per chain from the table. For a raw address, read
+  `decimals()` on-chain. Encode `transfer(to, parseUnits(amount, decimals))` and send it to the token
+  contract with `value: 0`.
+- Validate before signing: amount > 0, token has code on that chain, and (nice to have) `balanceOf(payer)`
+  covers the amount.
+- Tests: MON path unchanged; USDC builds the right calldata and `to`; an unknown symbol is rejected.
+
+### R3-3. Remove the previous project's leftovers
+Tracked files to delete (27):
+- `ops/**` (Celo mainnet manifests and deployments, nginx/systemd for `agentpay-celo`)
+- `test/fixtures/celo-mainnet.shadow.json`
+- `pitch-deck-20260810-agentpay-arc.html`
+- `.impeccable/critique/…agentpay-deck.md`
+- `packages/plugin-monad/tsconfig.tsbuildinfo` (and add `*.tsbuildinfo` to `.gitignore`)
+
+`packages/shared`: every module except `monad.ts` is from the old project (X Layer/Arc/Base chains,
+Circle, Celo attribution, Supabase auth, invoices). The plugin no longer uses shared at runtime. The only
+importers left are `scripts/*.ts` and `contracts/test/simulation.test.ts`, and they all import
+`packages/shared/src/monad`. Recommended: point those at `packages/plugin-monad/src/monad.ts` and delete
+`packages/shared` (or keep only `monad.ts` if you want the workspace), then update `CLAUDE.md`.
+
+Root `package.json` dependencies only used by the legacy shared modules: `@celo/attribution-tags`,
+`ethers`, `@noble/hashes`. Unused anywhere: `@supabase/supabase-js`, `@playwright/test`. `@x402/*` now
+lives in the plugin's own `package.json`. Remove them and refresh `package-lock.json`.
+
+Extend `scripts/repository-contents.test.mjs` so it fails if anything matching `celo|agentpay|^ops/` is
+tracked again.
+
+### R3-4. Follow-ups from the PR #2 review
+- `x402/pay.ts`: if `recoverTypedDataAddress` throws, abort instead of sending an unverified payment.
+- Add a unit test for `PAYER_MISMATCH` (no payment header may reach the server).
+- `sdk.ts` `isTransportError`: use viem's `HttpRequestError` (or the HTTP `status`), not `"400"`/`"500"`
+  substring matching.
+- x402 `chainId` for signing: derive it from the table/CAIP-2 (`eip155:143` → 143) instead of
+  `network.includes("10143")`.
+
+### R3-5. Docs and demo
+- README: a "Mainnet (143)" section with the table above and which commands work where.
+- README + `skills/monad-agent/SKILL.md`: `--chain-id` and `--token USDC` examples.
+- Explorer links to at least one real mainnet write transaction (e.g. `reputation give` or `pay`) made
+  through `mm`. This is also the demo video's key moment.
+
+### Merge criteria for this PR
+- [ ] R3-1: every command accepts `--chain-id 10143|143` and reads addresses from one per-chain table
+- [ ] R3-1: escrow commands on a chain without escrow fail with `ESCROW_NOT_DEPLOYED` before any wallet call
+- [ ] R3-1: `mm.commands[].targetChains` matches what each command supports; manifest regenerated
+- [ ] R3-2: `pay --token USDC` sends an ERC-20 `transfer` with correct decimals on both chains (unit test)
+- [ ] R3-3: `git ls-files | grep -iE "celo|agentpay|^ops/|tsbuildinfo"` is empty, and the repo test enforces it
+- [ ] R3-3: legacy `packages/shared` modules and unused root deps removed; scripts and contract tests still run
+- [ ] R3-4: x402 aborts when recovery fails; `PAYER_MISMATCH` test added; transport-error check uses viem types
+- [ ] Typecheck, plugin tests, `forge test` green; fresh build emits all commands
+- [ ] `mm` run on **143**: `mm monad identity get <id> --chain-id 143` output, plus one write tx explorer link (paste in PR)
+- [ ] README, SKILL.md and CLAUDE.md updated
+
+---
+
 ## Round 2 — review of `d27c6d8`
 
 Estimated score: **~5.5 / 10** (up from 4.6). Escrow, reputation, executor shape and the x402 fallback
