@@ -1,6 +1,6 @@
 ---
 name: monad-agent
-description: Instructions for AI agents to interact with Monad Testnet using the MetaMask Agent Wallet Plugin (@monagent/plugin-monad). Covers autonomous direct payments, ERC-8004 trustless agent identity and reputation, x402 micropayments, and subcontracted task escrow.
+description: Instructions for AI agents to interact with Monad Testnet using the MetaMask Agent Wallet Plugin (@zakyirsyaad/monagent-plugin). Covers autonomous direct payments, ERC-8004 trustless agent identity and reputation, x402 micropayments, and subcontracted task escrow.
 ---
 
 # Monad Agent Wallet Plugin (`mm monad`)
@@ -13,11 +13,11 @@ This skill teaches AI agents how to execute financial and trust operations on **
    ```bash
    npm install -g @metamask/agent-wallet@latest
    ```
-2. Enable experimental plugins and install `@monagent/plugin-monad`:
+2. Enable experimental plugins and install `@zakyirsyaad/monagent-plugin`:
    ```bash
    mm config set experimentalPlugins true
    mm config set experimentalAllowUnverifiedInstalls true
-   mm plugins install "@monagent/plugin-monad" --accept-permissions
+   mm plugins install "@zakyirsyaad/monagent-plugin" --accept-permissions
    ```
 3. Ensure your agent wallet has Monad testnet funds (`MON`) from the faucet at `https://faucet.monad.xyz`.
 

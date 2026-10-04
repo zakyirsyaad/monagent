@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   MONAD_TESTNET_CHAIN_ID,
   MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
-} from "@monagent/shared";
+} from "@zakyirsyaad/monagent-shared";
 
 import { PluginCommand, type CommandIO } from "../../sdk.js";
 

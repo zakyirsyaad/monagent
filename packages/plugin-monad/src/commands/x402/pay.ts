@@ -2,7 +2,7 @@ import { parseEther } from "viem";
 import {
   MONAD_TESTNET_CHAIN_ID,
   monadX402PaymentSchema,
-} from "@monagent/shared";
+} from "@zakyirsyaad/monagent-shared";
 
 import { PluginCommand, type CommandIO } from "../../sdk.js";
 

@@ -4,49 +4,49 @@
     "monad:pay": {
       "id": "monad:pay",
       "description": "Send direct MON or ERC-20 payment on Monad Testnet",
-      "pluginName": "@monagent/plugin-monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
       "aliases": []
     },
     "monad:identity:register": {
       "id": "monad:identity:register",
       "description": "Register an AI Agent identity on Monad Testnet ERC-8004 Registry",
-      "pluginName": "@monagent/plugin-monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
       "aliases": []
     },
     "monad:identity:get": {
       "id": "monad:identity:get",
       "description": "Get agent identity details from Monad Testnet ERC-8004 Registry",
-      "pluginName": "@monagent/plugin-monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
       "aliases": []
     },
     "monad:reputation:check": {
       "id": "monad:reputation:check",
       "description": "Check peer agent reputation on Monad ERC-8004 Reputation Registry",
-      "pluginName": "@monagent/plugin-monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
       "aliases": []
     },
     "monad:reputation:give": {
       "id": "monad:reputation:give",
       "description": "Submit on-chain peer feedback to Monad ERC-8004 Reputation Registry",
-      "pluginName": "@monagent/plugin-monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
       "aliases": []
     },
     "monad:x402:pay": {
       "id": "monad:x402:pay",
       "description": "Execute paid tool/API call over HTTP 402 with Monad micropayments",
-      "pluginName": "@monagent/plugin-monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
       "aliases": []
     },
     "monad:jobs:create": {
       "id": "monad:jobs:create",
       "description": "Create and fund a subcontracted A2A task escrow on Monad",
-      "pluginName": "@monagent/plugin-monad",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
       "pluginType": "core",
       "aliases": []
     }

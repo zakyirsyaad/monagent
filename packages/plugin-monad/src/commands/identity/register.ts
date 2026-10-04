@@ -4,7 +4,7 @@ import {
   MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
   monadAgentCardSchema,
   type MonadAgentCard,
-} from "@monagent/shared";
+} from "@zakyirsyaad/monagent-shared";
 
 import { PluginCommand, type CommandIO } from "../../sdk.js";
 

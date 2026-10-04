@@ -39,9 +39,8 @@ npm install -g @metamask/agent-wallet@latest
 # 2. Enable plugins and install MonAgent
 mm config set experimentalPlugins true
 mm config set experimentalAllowUnverifiedInstalls true
-mm plugins install "@monagent/plugin-monad" --accept-permissions
+mm plugins install "@zakyirsyaad/monagent-plugin" --accept-permissions
 ```
-
 ### Agent Instruction Skill
 Agents operating with this plugin can read the full behavioral specification at:
 👉 [`skills/monad-agent/SKILL.md`](./skills/monad-agent/SKILL.md)
@@ -50,8 +49,8 @@ Agents operating with this plugin can read the full behavioral specification at:
 
 ## Interactive End-to-End Demo
 
-Run the local demonstration script simulating all 6 core agent workflows on Monad:
-
+npm test --workspace @zakyirsyaad/monagent-plugin
+npm test --workspace @zakyirsyaad/monagent-shared
 ```bash
 npm run demo:local
 ```
