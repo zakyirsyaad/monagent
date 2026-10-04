@@ -56,7 +56,7 @@ MonAgent natively supports both Monad Testnet and Monad Mainnet across all comma
 
 ```bash
 # 1. Install MetaMask Agent Wallet CLI
-npm install -g @metamask/agent-wallet@latest
+npm install -g @metamask/agent-wallet@7
 
 # 2. Enable plugins and install MonAgent
 mm config set experimentalPlugins true
