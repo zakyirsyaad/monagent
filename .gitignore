@@ -19,3 +19,4 @@ blob-report/
 /AGENTPAY_CONCEPT.md
 /docs/
 **/PRODUCT.md
+*.tsbuildinfo

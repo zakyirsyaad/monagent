@@ -27,7 +27,7 @@ import {
   MONAD_TESTNET_EXPLORER_URL,
   MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
   MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
-} from "../packages/shared/src/monad.js";
+} from "../packages/plugin-monad/src/monad.js";
 
 const monadChain = {
   id: MONAD_TESTNET_CHAIN_ID,

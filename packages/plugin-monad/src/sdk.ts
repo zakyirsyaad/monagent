@@ -6,8 +6,8 @@ import {
   InputFieldType,
   type InputSchema,
 } from "@metamask/agent-wallet/plugin";
-import { createPublicClient, http, type PublicClient } from "viem";
-import { MONAD_TESTNET_CHAIN_ID, MONAD_TESTNET_RPC_URL, MONAD_MAINNET_CHAIN_ID, MONAD_MAINNET_RPC_URL } from "./monad.js";
+import { createPublicClient, http, HttpRequestError, type PublicClient } from "viem";
+import { resolveChain, MONAD_TESTNET_CHAIN_ID } from "./monad.js";
 
 export abstract class BaseMonadPluginCommand<TFinal = void> extends PluginCommand<TFinal> {
   static description: string;
@@ -24,14 +24,14 @@ export abstract class BaseMonadPluginCommand<TFinal = void> extends PluginComman
    * proxy returning 400 "Invalid chainId" when querying testnet 10143).
    */
   public getPublicClient(chainId: number = MONAD_TESTNET_CHAIN_ID): PublicClient {
-    const rpcUrl = chainId === MONAD_MAINNET_CHAIN_ID ? MONAD_MAINNET_RPC_URL : MONAD_TESTNET_RPC_URL;
+    const chain = resolveChain(chainId);
     const directClient = createPublicClient({
-      transport: http(rpcUrl),
+      transport: http(chain.rpcUrl),
     }) as unknown as PublicClient;
 
     if (this.ctx && typeof this.ctx.publicClient === "function") {
       try {
-        const hostClient = this.ctx.publicClient(chainId);
+        const hostClient = this.ctx.publicClient(chain.chainId);
         return new Proxy(hostClient, {
           get(target, prop, receiver) {
             const orig = Reflect.get(target, prop, receiver);
@@ -43,12 +43,14 @@ export abstract class BaseMonadPluginCommand<TFinal = void> extends PluginComman
                   return res.catch((err: any) => {
                     const errMsg = String(err?.message || err);
                     const isTransportError =
+                      err instanceof HttpRequestError ||
+                      err?.cause instanceof HttpRequestError ||
+                      (typeof err?.status === "number" && (err.status === 400 || err.status === 500)) ||
+                      (typeof err?.cause?.status === "number" && (err.cause.status === 400 || err.cause.status === 500)) ||
                       errMsg.includes("HTTP request failed") ||
                       errMsg.includes("Invalid chainId") ||
                       errMsg.includes("MISSING_PROJECT_ID") ||
-                      errMsg.includes("fetch failed") ||
-                      errMsg.includes("400") ||
-                      errMsg.includes("500");
+                      errMsg.includes("fetch failed");
 
                     if (isTransportError) {
                       const fallbackFn = Reflect.get(directClient, prop, directClient);

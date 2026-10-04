@@ -10,7 +10,7 @@ import {
   type Abi,
   type Hex,
 } from "viem";
-import { MONAD_NETWORK } from "../../packages/shared/src/monad.js";
+import { MONAD_NETWORK } from "../../packages/plugin-monad/src/monad.js";
 
 const monadChain = {
   id: MONAD_NETWORK.chainId,

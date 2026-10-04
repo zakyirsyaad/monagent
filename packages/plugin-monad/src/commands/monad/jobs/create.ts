@@ -1,7 +1,6 @@
 import { encodeFunctionData, parseEther, parseEventLogs } from "viem";
 import {
-  MONAD_TESTNET_CHAIN_ID,
-  MONAD_DEPLOYED_A2A_ESCROW,
+  resolveChain,
   monadEscrowAbi,
   monadCreateJobSchema,
 } from "../../../monad.js";
@@ -21,6 +20,7 @@ export interface CreateJobResult {
   bountyMon: string;
   taskDescription: string;
   escrowTransactionHash: `0x${string}`;
+  chainId: number;
 }
 
 export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResult> {
@@ -52,6 +52,14 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
       message: "Review and task window in hours (default 24)",
       required: false,
     },
+    chainId: {
+      type: InputFieldType.Text,
+      flag: "chain-id",
+      aliases: ["chainId"],
+      message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
+      default: "10143",
+      required: false,
+    },
   };
 
   static flags = PluginCommand.flagsWithInputs(this.inputs);
@@ -67,9 +75,18 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
       );
     }
     const { workerAddress, bountyMon, taskDescription, deadlineHours } = parsed.data;
+    const chain = resolveChain(rawInputs.chainId as any);
+
+    if (!chain.escrow) {
+      throw new CommandError(
+        "ESCROW_NOT_DEPLOYED",
+        `MonadA2AEscrow is not deployed on Monad chain ${chain.chainId}. Escrow is currently available on Monad Testnet (10143).`,
+        "Specify --chain-id 10143 to interact with escrow contracts."
+      );
+    }
 
     io.emit(
-      `Creating A2A Job for worker ${workerAddress} with bounty ${bountyMon} MON (Deadline: ${deadlineHours}h)...`
+      `Creating A2A Job on ${chain.name} for worker ${workerAddress} with bounty ${bountyMon} MON (Deadline: ${deadlineHours}h)...`
     );
 
     const data = encodeFunctionData({
@@ -79,14 +96,14 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
     });
 
     const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
-      chainId: MONAD_TESTNET_CHAIN_ID,
-      to: MONAD_DEPLOYED_A2A_ESCROW,
+      chainId: chain.chainId,
+      to: chain.escrow,
       value: parseEther(bountyMon),
       data,
     });
 
-    // Wait for receipt and decode JobCreated event (R2-5: no silent fallback to "1")
-    const client = this.getPublicClient(MONAD_TESTNET_CHAIN_ID);
+    // Wait for receipt and decode JobCreated event
+    const client = this.getPublicClient(chain.chainId);
     const receipt = await client.waitForTransactionReceipt({ hash });
 
     const logs = parseEventLogs({
@@ -105,7 +122,8 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
 
     const onChainJobId = logs[0].args.jobId.toString();
 
-    io.emit(`Job escrow funded on Monad! JobId: ${onChainJobId}, TxHash: ${hash}`);
+    io.emit(`Job escrow funded on ${chain.name}! JobId: ${onChainJobId}, TxHash: ${hash}`);
+    io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
 
     return {
       jobId: onChainJobId,
@@ -113,6 +131,7 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
       bountyMon,
       taskDescription,
       escrowTransactionHash: hash,
+      chainId: chain.chainId,
     };
   }
 }

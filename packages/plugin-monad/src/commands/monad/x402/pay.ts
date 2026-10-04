@@ -2,11 +2,11 @@ import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { recoverTypedDataAddress } from "viem";
 import {
-  MONAD_TESTNET_CHAIN_ID,
-  MONAD_MAINNET_CHAIN_ID,
+  resolveChain,
   MONAD_TESTNET_CAIP2,
   MONAD_MAINNET_CAIP2,
   MONAD_TESTNET_USDC,
+  MONAD_MAINNET_USDC,
 } from "../../../monad.js";
 import {
   BaseMonadPluginCommand,
@@ -68,6 +68,14 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       flag: "payer",
       message: "Payer EVM wallet address to sign payment authorization",
       required: true,
+    },
+    chainId: {
+      type: InputFieldType.Text,
+      flag: "chain-id",
+      aliases: ["chainId"],
+      message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
+      default: "10143",
+      required: false,
     },
   };
 
@@ -183,8 +191,23 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       );
     }
 
-    // Enrich extra domain info if server didn't include it for testnet USDC
-    if (requirement.asset?.toLowerCase() === MONAD_TESTNET_USDC.toLowerCase() && !requirement.extra) {
+    // Derive chain ID from CAIP-2 requirement.network regex
+    const caipMatch = /^eip155:(\d+)$/.exec(requirement.network);
+    if (!caipMatch) {
+      throw new CommandError(
+        "UNSUPPORTED_PAYMENT_NETWORK",
+        `Network "${requirement.network}" does not conform to CAIP-2 eip155:<chainId>.`,
+        "Ensure the server provides a valid eip155 CAIP-2 network."
+      );
+    }
+    const resolvedChain = resolveChain(Number(caipMatch[1]));
+
+    // Enrich extra domain info if server didn't include it for USDC
+    const isUsdc =
+      requirement.asset?.toLowerCase() === MONAD_TESTNET_USDC.toLowerCase() ||
+      requirement.asset?.toLowerCase() === MONAD_MAINNET_USDC.toLowerCase();
+
+    if (isUsdc && !requirement.extra) {
       requirement.extra = {
         name: "USDC",
         version: "2",
@@ -195,11 +218,10 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
     }
 
     io.emit(
-      `Negotiating x402 payment: ${requirement.amount} (${requirement.asset}) on ${requirement.network} to ${requirement.payTo}...`
+      `Negotiating x402 payment: ${requirement.amount} (${requirement.asset}) on ${resolvedChain.name} (${requirement.network}) to ${requirement.payTo}...`
     );
 
-    // Issue 1: createPaymentPayload must sign EXACTLY the inspected requirement,
-    // not accepts[0] which could be on another network or exceed maxSpend.
+    // createPaymentPayload must sign EXACTLY the inspected requirement
     const sanitizedPaymentRequired = {
       ...paymentRequired,
       accepts: [requirement],
@@ -213,12 +235,8 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       address: payerAddress,
       signTypedData: async (typedDataMsg: any) => {
         lastTypedData = typedDataMsg;
-        const chainId = requirement.network.includes("10143")
-          ? MONAD_TESTNET_CHAIN_ID
-          : MONAD_MAINNET_CHAIN_ID;
-
         const sig = await executeSignTypedData(this.ctx, io, this.pluginCommandId, {
-          chainId,
+          chainId: resolvedChain.chainId,
           typedData: {
             domain: typedDataMsg.domain,
             types: typedDataMsg.types,
@@ -244,7 +262,7 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       );
     }
 
-    // Issue 2: Verify signer matches payerAddress using recoverTypedDataAddress
+    // Verify signer matches payerAddress using recoverTypedDataAddress. Abort on ANY error.
     if (lastTypedData && lastSignature) {
       try {
         const recovered = await recoverTypedDataAddress({
@@ -264,7 +282,11 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
         }
       } catch (err: any) {
         if (err instanceof CommandError) throw err;
-        // Ignore parsing errors if signature format differs
+        throw new CommandError(
+          "SIGNATURE_VERIFICATION_FAILED",
+          `Failed to verify EIP-712 payment signature: ${err?.message || String(err)}`,
+          "Verify that the wallet produced a valid EIP-712 signature."
+        );
       }
     }
 

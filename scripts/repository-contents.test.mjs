@@ -23,4 +23,25 @@ describe("repository contents", () => {
       false,
     );
   });
+
+  it("keeps legacy files (celo, agentpay, ops, tsbuildinfo) out of the repository", () => {
+    const result = spawnSync("git", ["ls-files"], {
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0);
+
+    const trackedFiles = result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const legacyPattern = /(?:celo|agentpay|^ops\/|\.tsbuildinfo$)/i;
+    const legacyFiles = trackedFiles.filter((file) => legacyPattern.test(file));
+
+    assert.deepEqual(
+      legacyFiles,
+      [],
+      `Found legacy files in git index:\n${legacyFiles.join("\n")}`,
+    );
+  });
 });

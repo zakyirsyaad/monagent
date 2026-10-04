@@ -1,1 +1,0 @@
-{"root":["./src/commands.test.ts","./src/index.ts","./src/sdk.ts","./src/commands/pay.ts","./src/commands/identity/get.ts","./src/commands/identity/register.ts","./src/commands/jobs/create.ts","./src/commands/reputation/check.ts","./src/commands/reputation/give.ts","./src/commands/x402/pay.ts"],"errors":true,"version":"6.0.3"}
