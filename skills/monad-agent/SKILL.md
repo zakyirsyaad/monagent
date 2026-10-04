@@ -71,7 +71,8 @@ mm monad x402 pay \
   --url "https://api.monad-agent-services.com/v1/inference" \
   --method "POST" \
   --body '{"prompt":"predict"}' \
-  --maxSpend 1000000
+  --maxSpend 1000000 \
+  --payer "0x6beda6290a60a07ddb4Bf9D42A0D8d4E24E535Fa"
 ```
 
 ### 5. A2A Task Escrow & Subcontracting

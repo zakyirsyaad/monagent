@@ -74,8 +74,8 @@
       "pluginType": "core",
       "strict": true,
       "enableJsonFlag": false,
-      "requiresAuth": false,
-      "requiresInit": false,
+      "requiresAuth": true,
+      "requiresInit": true,
       "requiresFees": false,
       "byokPasswordFlags": {
         "password": {
@@ -114,7 +114,6 @@
           "type": "text",
           "flag": "token",
           "message": "Token symbol (default MON)",
-          "default": "MON",
           "required": false
         },
         "memo": {
@@ -239,7 +238,6 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "default": "10143",
           "required": false
         }
       },
@@ -326,8 +324,8 @@
       "pluginType": "core",
       "strict": true,
       "enableJsonFlag": false,
-      "requiresAuth": false,
-      "requiresInit": false,
+      "requiresAuth": true,
+      "requiresInit": true,
       "requiresFees": false,
       "byokPasswordFlags": {
         "password": {
@@ -372,7 +370,6 @@
           "type": "text",
           "flag": "endpoint",
           "message": "Primary service endpoint URL",
-          "default": "https://agent.xyz",
           "required": false
         }
       },
@@ -387,7 +384,13 @@
     },
     "monad:jobs:complete": {
       "aliases": [],
-      "args": {},
+      "args": {
+        "jobId": {
+          "description": "Escrow job ID to complete",
+          "name": "jobId",
+          "required": true
+        }
+      },
       "description": "Complete and release a subcontracted A2A task escrow on Monad",
       "flags": {
         "format": {
@@ -445,8 +448,8 @@
       "pluginType": "core",
       "strict": true,
       "enableJsonFlag": false,
-      "requiresAuth": false,
-      "requiresInit": false,
+      "requiresAuth": true,
+      "requiresInit": true,
       "requiresFees": false,
       "byokPasswordFlags": {
         "password": {
@@ -480,7 +483,6 @@
           "type": "text",
           "flag": "resultURI",
           "message": "Deliverable URI or proof hash",
-          "default": "ipfs://settled",
           "required": false
         }
       },
@@ -567,8 +569,8 @@
       "pluginType": "core",
       "strict": true,
       "enableJsonFlag": false,
-      "requiresAuth": false,
-      "requiresInit": false,
+      "requiresAuth": true,
+      "requiresInit": true,
       "requiresFees": false,
       "byokPasswordFlags": {
         "password": {
@@ -613,7 +615,6 @@
           "type": "text",
           "flag": "deadlineHours",
           "message": "Review and task window in hours (default 24)",
-          "default": "24",
           "required": false
         }
       },
@@ -628,7 +629,13 @@
     },
     "monad:jobs:refund": {
       "aliases": [],
-      "args": {},
+      "args": {
+        "jobId": {
+          "description": "Escrow job ID to refund after deadline",
+          "name": "jobId",
+          "required": true
+        }
+      },
       "description": "Refund an expired subcontracted A2A task escrow on Monad",
       "flags": {
         "format": {
@@ -679,8 +686,8 @@
       "pluginType": "core",
       "strict": true,
       "enableJsonFlag": false,
-      "requiresAuth": false,
-      "requiresInit": false,
+      "requiresAuth": true,
+      "requiresInit": true,
       "requiresFees": false,
       "byokPasswordFlags": {
         "password": {
@@ -722,7 +729,13 @@
     },
     "monad:reputation:check": {
       "aliases": [],
-      "args": {},
+      "args": {
+        "agentId": {
+          "description": "Agent token ID in ERC-8004 registry",
+          "name": "agentId",
+          "required": true
+        }
+      },
       "description": "Check peer agent reputation on Monad ERC-8004 Reputation Registry",
       "flags": {
         "format": {
@@ -822,14 +835,12 @@
           "type": "text",
           "flag": "tag1",
           "message": "Filter by primary category tag (e.g. speed)",
-          "default": "",
           "required": false
         },
         "tag2": {
           "type": "text",
           "flag": "tag2",
           "message": "Filter by secondary category tag (e.g. task)",
-          "default": "",
           "required": false
         }
       },
@@ -937,8 +948,8 @@
       "pluginType": "core",
       "strict": true,
       "enableJsonFlag": false,
-      "requiresAuth": false,
-      "requiresInit": false,
+      "requiresAuth": true,
+      "requiresInit": true,
       "requiresFees": false,
       "byokPasswordFlags": {
         "password": {
@@ -977,35 +988,30 @@
           "type": "text",
           "flag": "decimals",
           "message": "Decimals for score (default 0)",
-          "default": "0",
           "required": false
         },
         "tag1": {
           "type": "text",
           "flag": "tag1",
           "message": "Primary feedback category tag (e.g. speed)",
-          "default": "general",
           "required": false
         },
         "tag2": {
           "type": "text",
           "flag": "tag2",
           "message": "Secondary category tag (e.g. accuracy)",
-          "default": "task",
           "required": false
         },
         "endpoint": {
           "type": "text",
           "flag": "endpoint",
           "message": "Service endpoint that performed the task",
-          "default": "",
           "required": false
         },
         "feedbackURI": {
           "type": "text",
           "flag": "feedbackURI",
           "message": "URI pointing to detailed review or task proof",
-          "default": "",
           "required": false
         }
       },
@@ -1077,6 +1083,9 @@
           "type": "option"
         },
         "maxSpend": {
+          "aliases": [
+            "max-spend"
+          ],
           "description": "Maximum spend limit in token base units (e.g. 1000000 for 1 USDC)",
           "name": "maxSpend",
           "hasDynamicHelp": false,
@@ -1084,7 +1093,7 @@
           "type": "option"
         },
         "payer": {
-          "description": "Explicit payer EVM address (if not inferred)",
+          "description": "Payer EVM wallet address to sign payment authorization",
           "name": "payer",
           "hasDynamicHelp": false,
           "multiple": false,
@@ -1099,8 +1108,8 @@
       "pluginType": "core",
       "strict": true,
       "enableJsonFlag": false,
-      "requiresAuth": false,
-      "requiresInit": false,
+      "requiresAuth": true,
+      "requiresInit": true,
       "requiresFees": false,
       "byokPasswordFlags": {
         "password": {
@@ -1145,15 +1154,17 @@
         "maxSpend": {
           "type": "text",
           "flag": "maxSpend",
+          "aliases": [
+            "max-spend"
+          ],
           "message": "Maximum spend limit in token base units (e.g. 1000000 for 1 USDC)",
-          "default": "1000000",
           "required": false
         },
         "payer": {
           "type": "text",
           "flag": "payer",
-          "message": "Explicit payer EVM address (if not inferred)",
-          "required": false
+          "message": "Payer EVM wallet address to sign payment authorization",
+          "required": true
         }
       },
       "isESM": true,

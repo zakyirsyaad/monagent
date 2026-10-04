@@ -13,7 +13,7 @@ import {
   type InputSchema,
   executeTransaction,
 } from "../../../sdk.js";
-import { PluginCommand } from "@metamask/agent-wallet/plugin";
+import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
 export interface CompleteJobResult {
   jobId: string;
@@ -37,12 +37,12 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       type: InputFieldType.Text,
       flag: "resultURI",
       message: "Deliverable URI or proof hash",
-      default: "ipfs://settled",
       required: false,
     },
   };
 
   static flags = PluginCommand.flagsWithInputs(this.inputs);
+  static args = schemaToArgs(this.inputs);
 
   async execute(io: CommandIO): Promise<CompleteJobResult> {
     const rawInputs = await io.resolveInputs(MonadJobsCompleteCommand.inputs);

@@ -13,7 +13,7 @@ import {
   type InputSchema,
   executeTransaction,
 } from "../../../sdk.js";
-import { PluginCommand } from "@metamask/agent-wallet/plugin";
+import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
 export interface RefundJobResult {
   jobId: string;
@@ -35,6 +35,7 @@ export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResu
   };
 
   static flags = PluginCommand.flagsWithInputs(this.inputs);
+  static args = schemaToArgs(this.inputs);
 
   async execute(io: CommandIO): Promise<RefundJobResult> {
     const rawInputs = await io.resolveInputs(MonadJobsRefundCommand.inputs);

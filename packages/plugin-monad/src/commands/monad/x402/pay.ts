@@ -1,5 +1,6 @@
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { recoverTypedDataAddress } from "viem";
 import {
   MONAD_TESTNET_CHAIN_ID,
   MONAD_MAINNET_CHAIN_ID,
@@ -58,15 +59,15 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
     maxSpend: {
       type: InputFieldType.Text,
       flag: "maxSpend",
+      aliases: ["max-spend"],
       message: "Maximum spend limit in token base units (e.g. 1000000 for 1 USDC)",
-      default: "1000000",
       required: false,
     },
     payer: {
       type: InputFieldType.Text,
       flag: "payer",
-      message: "Explicit payer EVM address (if not inferred)",
-      required: false,
+      message: "Payer EVM wallet address to sign payment authorization",
+      required: true,
     },
   };
 
@@ -78,7 +79,16 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
     const method = (rawInputs.method || "GET").toUpperCase();
     const body = rawInputs.body;
     const maxSpend = BigInt(rawInputs.maxSpend || "1000000");
-    const payerAddress = (rawInputs.payer || "0x0000000000000000000000000000000000000000") as `0x${string}`;
+    const rawPayer = String(rawInputs.payer || "").trim();
+
+    if (!/^0x[a-fA-F0-9]{40}$/.test(rawPayer) || rawPayer.toLowerCase() === "0x0000000000000000000000000000000000000000") {
+      throw new CommandError(
+        "INVALID_INPUT",
+        `Invalid or missing --payer address "${rawPayer}". A non-zero EVM address is required.`,
+        "Provide your agent wallet address using --payer 0x..."
+      );
+    }
+    const payerAddress = rawPayer as `0x${string}`;
 
     io.emit(`Executing request to paid API: ${url}...`);
 
@@ -188,15 +198,26 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       `Negotiating x402 payment: ${requirement.amount} (${requirement.asset}) on ${requirement.network} to ${requirement.payTo}...`
     );
 
+    // Issue 1: createPaymentPayload must sign EXACTLY the inspected requirement,
+    // not accepts[0] which could be on another network or exceed maxSpend.
+    const sanitizedPaymentRequired = {
+      ...paymentRequired,
+      accepts: [requirement],
+    };
+
     // Build ClientEvmSigner backed by MetaMask walletExecutor
+    let lastTypedData: any = null;
+    let lastSignature: `0x${string}` | null = null;
+
     const evmSigner = {
       address: payerAddress,
       signTypedData: async (typedDataMsg: any) => {
+        lastTypedData = typedDataMsg;
         const chainId = requirement.network.includes("10143")
           ? MONAD_TESTNET_CHAIN_ID
           : MONAD_MAINNET_CHAIN_ID;
 
-        return await executeSignTypedData(this.ctx, io, this.pluginCommandId, {
+        const sig = await executeSignTypedData(this.ctx, io, this.pluginCommandId, {
           chainId,
           typedData: {
             domain: typedDataMsg.domain,
@@ -205,20 +226,46 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
             message: typedDataMsg.message,
           },
         });
+        lastSignature = sig;
+        return sig;
       },
     };
 
-    registerExactEvmScheme(client, { signer: evmSigner });
+    registerExactEvmScheme(client, { signer: evmSigner, networks: [requirement.network] });
 
     let paymentPayload: any;
     try {
-      paymentPayload = await httpClient.createPaymentPayload(paymentRequired);
+      paymentPayload = await httpClient.createPaymentPayload(sanitizedPaymentRequired);
     } catch (err: any) {
       throw new CommandError(
         "PAYMENT_PAYLOAD_FAILED",
         `Failed to generate x402 payment authorization: ${err?.message || String(err)}`,
         "Ensure wallet is unlocked and approved to sign EIP-712 payment authorization."
       );
+    }
+
+    // Issue 2: Verify signer matches payerAddress using recoverTypedDataAddress
+    if (lastTypedData && lastSignature) {
+      try {
+        const recovered = await recoverTypedDataAddress({
+          domain: lastTypedData.domain,
+          types: lastTypedData.types,
+          primaryType: lastTypedData.primaryType,
+          message: lastTypedData.message,
+          signature: lastSignature,
+        });
+
+        if (recovered.toLowerCase() !== payerAddress.toLowerCase()) {
+          throw new CommandError(
+            "PAYER_MISMATCH",
+            `Recovered signature address ${recovered} does not match specified --payer ${payerAddress}.`,
+            "Ensure the active wallet in MetaMask matches --payer."
+          );
+        }
+      } catch (err: any) {
+        if (err instanceof CommandError) throw err;
+        // Ignore parsing errors if signature format differs
+      }
     }
 
     const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);

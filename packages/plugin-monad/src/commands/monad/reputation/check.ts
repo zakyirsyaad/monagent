@@ -10,7 +10,7 @@ import {
   InputFieldType,
   type InputSchema,
 } from "../../../sdk.js";
-import { PluginCommand } from "@metamask/agent-wallet/plugin";
+import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
 export interface CheckReputationResult {
   agentId: string;
@@ -21,6 +21,8 @@ export interface CheckReputationResult {
 
 export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckReputationResult> {
   static description = "Check peer agent reputation on Monad ERC-8004 Reputation Registry";
+  static requiresAuth = false;
+  static requiresInit = false;
   protected override readonly pluginCommandId = "monad:reputation:check";
 
   public static readonly inputs: InputSchema = {
@@ -35,19 +37,18 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
       type: InputFieldType.Text,
       flag: "tag1",
       message: "Filter by primary category tag (e.g. speed)",
-      default: "",
       required: false,
     },
     tag2: {
       type: InputFieldType.Text,
       flag: "tag2",
       message: "Filter by secondary category tag (e.g. task)",
-      default: "",
       required: false,
     },
   };
 
   static flags = PluginCommand.flagsWithInputs(this.inputs);
+  static args = schemaToArgs(this.inputs);
 
   async execute(io: CommandIO): Promise<CheckReputationResult> {
     const rawInputs = await io.resolveInputs(MonadReputationCheckCommand.inputs);

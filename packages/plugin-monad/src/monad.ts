@@ -16,12 +16,29 @@ export const MONAD_TESTNET_EXPLORER_URL = "https://testnet.monadexplorer.com" as
 export const MONAD_MAINNET_EXPLORER_URL = "https://monadexplorer.com" as const;
 
 /**
- * Official Canonical ERC-8004 Registries on Monad Testnet (10143)
+ * Official Canonical ERC-8004 Registries on Monad Testnet (10143) and Mainnet (143)
  */
 export const MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY =
   "0x8004A818BFB912233c491871b3d84c89A494BD9e" as const;
 export const MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY =
   "0x8004B663056A597Dffe9eCcC1965A193B7388713" as const;
+
+export const MONAD_MAINNET_ERC8004_IDENTITY_REGISTRY =
+  "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as const;
+export const MONAD_MAINNET_ERC8004_REPUTATION_REGISTRY =
+  "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" as const;
+
+export function getErc8004IdentityRegistry(chainId: number): `0x${string}` {
+  return chainId === MONAD_MAINNET_CHAIN_ID
+    ? MONAD_MAINNET_ERC8004_IDENTITY_REGISTRY
+    : MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY;
+}
+
+export function getErc8004ReputationRegistry(chainId: number): `0x${string}` {
+  return chainId === MONAD_MAINNET_CHAIN_ID
+    ? MONAD_MAINNET_ERC8004_REPUTATION_REGISTRY
+    : MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY;
+}
 
 /**
  * Official Monad x402 Facilitator & Testnet USDC

@@ -42,7 +42,6 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
       type: InputFieldType.Text,
       flag: "token",
       message: "Token symbol (default MON)",
-      default: "MON",
       required: false,
     },
     memo: {

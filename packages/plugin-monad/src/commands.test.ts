@@ -121,7 +121,7 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       { name: "monad:jobs:create", inputs: MonadJobsCreateCommand.inputs, mockFlags: { workerAddress: "0x1111111111111111111111111111111111111111", bountyMon: "0.5", taskDescription: "Test task" } },
       { name: "monad:jobs:complete", inputs: MonadJobsCompleteCommand.inputs, mockFlags: { jobId: "1" } },
       { name: "monad:jobs:refund", inputs: MonadJobsRefundCommand.inputs, mockFlags: { jobId: "1" } },
-      { name: "monad:x402:pay", inputs: MonadX402PayCommand.inputs, mockFlags: { url: "https://example.com" } },
+      { name: "monad:x402:pay", inputs: MonadX402PayCommand.inputs, mockFlags: { url: "https://example.com", payer: "0x1111111111111111111111111111111111111111" } },
     ];
 
     for (const cmd of commandsWithInputs) {
@@ -278,27 +278,59 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     assert.ok(result.transactionHash);
   });
 
-  it("executes x402 payment negotiation using @x402/core and @x402/evm", async () => {
+  it("executes x402 payment negotiation selecting Monad requirement even when accepts[0] is non-Monad", async () => {
+    const { privateKeyToAccount } = await import("viem/accounts");
+    const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const testPayer = account.address;
+
     const cmd = new MonadX402PayCommand();
+    let signedChainId: number | null = null;
+    let signedTypedData: any = null;
+
     const ctx = createMockContext();
+
+    // Dynamically sign with account so recovered signature strictly matches testPayer
+    (ctx as any).walletExecutor = async () => async (req: any) => {
+      if (req.kind === "typed-data") {
+        signedChainId = req.chainId;
+        signedTypedData = req.typedData;
+        const sig = await account.signTypedData(req.typedData);
+        return {
+          status: "CONFIRMED",
+          signature: sig,
+        };
+      }
+      return {
+        status: "CONFIRMED",
+      };
+    };
     (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
 
-    // Mock global fetch for 402 negotiation
+    // Mock global fetch for 402 negotiation with accepts[0] on Base with 1000 USDC ($1000)
+    // and accepts[1] on Monad with 0.01 USDC (10000 base units)
     const originalFetch = globalThis.fetch;
     let callCount = 0;
     globalThis.fetch = async (url: any, init?: any) => {
       callCount++;
       if (callCount === 1) {
-        // Return 402 with x402 payment required response
         return new Response(
           JSON.stringify({
             x402Version: 2,
             accepts: [
               {
                 scheme: "exact",
-                network: "eip155:10143",
+                network: "eip155:8453", // Base mainnet - MUST NOT be signed
+                asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                amount: "1000000000", // 1000 USDC
+                payTo: "0x9999999999999999999999999999999999999999",
+                maxTimeoutSeconds: 3600,
+                extra: { name: "USD Coin", version: "2" },
+              },
+              {
+                scheme: "exact",
+                network: "eip155:10143", // Monad testnet - MUST BE SIGNED
                 asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
-                amount: "10000",
+                amount: "10000", // 0.01 USDC
                 payTo: "0x8888888888888888888888888888888888888888",
                 maxTimeoutSeconds: 3600,
                 extra: { name: "USDC", version: "2" },
@@ -324,7 +356,8 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     try {
       const io = createMockIO({
         url: "https://api.monad.xyz/paid/weather",
-        maxSpend: "100000",
+        maxSpend: "20000",
+        payer: testPayer,
       });
 
       const res = await cmd.execute(io);
@@ -333,6 +366,11 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       assert.equal(res.paymentDetails?.scheme, "exact");
       assert.equal(res.paymentDetails?.network, "eip155:10143");
       assert.equal(res.paymentDetails?.amount, "10000");
+
+      // Verify that the executor actually signed Monad requirement (Chain 10143), NOT Base
+      assert.equal(signedChainId, 10143);
+      assert.equal(signedTypedData?.domain?.chainId, 10143);
+      assert.equal(signedTypedData?.message?.value, 10000n);
     } finally {
       globalThis.fetch = originalFetch;
     }

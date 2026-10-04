@@ -1,6 +1,6 @@
 import {
   MONAD_TESTNET_CHAIN_ID,
-  MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+  getErc8004IdentityRegistry,
   erc8004IdentityAbi,
   type MonadAgentCard,
 } from "../../../monad.js";
@@ -22,6 +22,8 @@ export interface GetIdentityResult {
 
 export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityResult> {
   static description = "Get agent identity details from Monad Testnet ERC-8004 Registry";
+  static requiresAuth = false;
+  static requiresInit = false;
   protected override readonly pluginCommandId = "monad:identity:get";
 
   public static readonly inputs: InputSchema = {
@@ -37,7 +39,6 @@ export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityR
       flag: "chain-id",
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
-      default: "10143",
       required: false,
     },
   };
@@ -64,22 +65,24 @@ export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityR
     let walletAddress: string;
     let tokenUri: string;
 
+    const registryAddress = getErc8004IdentityRegistry(chainId);
+
     try {
       [owner, walletAddress, tokenUri] = await Promise.all([
         client.readContract({
-          address: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+          address: registryAddress,
           abi: erc8004IdentityAbi,
           functionName: "ownerOf",
           args: [tokenIdBigInt],
         }),
         client.readContract({
-          address: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+          address: registryAddress,
           abi: erc8004IdentityAbi,
           functionName: "getAgentWallet",
           args: [tokenIdBigInt],
         }),
         client.readContract({
-          address: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
+          address: registryAddress,
           abi: erc8004IdentityAbi,
           functionName: "tokenURI",
           args: [tokenIdBigInt],
@@ -88,8 +91,8 @@ export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityR
     } catch (err: any) {
       throw new CommandError(
         "AGENT_NOT_FOUND",
-        `Failed to fetch Agent #${agentId} from Monad ERC-8004 Registry: ${err?.message || String(err)}`,
-        "Verify the agentId exists on Monad Testnet."
+        `Failed to fetch Agent #${agentId} from Monad ERC-8004 Registry (${registryAddress} on chain ${chainId}): ${err?.message || String(err)}`,
+        "Verify the agentId exists on the specified chain."
       );
     }
 

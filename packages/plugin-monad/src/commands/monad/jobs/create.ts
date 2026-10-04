@@ -50,7 +50,6 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
       type: InputFieldType.Text,
       flag: "deadlineHours",
       message: "Review and task window in hours (default 24)",
-      default: "24",
       required: false,
     },
   };

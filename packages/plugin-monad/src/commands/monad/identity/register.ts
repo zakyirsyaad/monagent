@@ -50,7 +50,6 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
       type: InputFieldType.Text,
       flag: "endpoint",
       message: "Primary service endpoint URL",
-      default: "https://agent.xyz",
       required: false,
     },
   };
@@ -119,7 +118,7 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
     });
 
     // Extract agentId from Registered event log
-    let onChainAgentId: string = "1";
+    let onChainAgentId: string;
     try {
       const client = this.getPublicClient(MONAD_TESTNET_CHAIN_ID);
       const receipt = await client.waitForTransactionReceipt({ hash });
@@ -130,9 +129,15 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
       });
       if (logs.length > 0 && logs[0].args.agentId !== undefined) {
         onChainAgentId = logs[0].args.agentId.toString();
+      } else {
+        throw new Error("Registered event not found in receipt");
       }
-    } catch {
-      // Keep default if receipt parsing fails
+    } catch (err: any) {
+      throw new CommandError(
+        "RECEIPT_PARSING_FAILED",
+        `Agent registration confirmed in tx ${hash}, but Registered event log could not be parsed: ${err?.message || String(err)}`,
+        "Check transaction on Monad Explorer."
+      );
     }
 
     io.emit(`Agent #${onChainAgentId} registered on Monad ERC-8004 Registry! TxHash: ${hash}`);
