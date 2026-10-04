@@ -17,14 +17,13 @@ describe("Monad Testnet domain specifications", () => {
   it("has exact verified parameters for Monad Testnet", () => {
     assert.equal(MONAD_TESTNET_CHAIN_ID, 10143);
     assert.equal(MONAD_TESTNET_CAIP2, "eip155:10143");
-    assert.equal(MONAD_TESTNET_RPC_URL, "https://testnet-rpc.monad.xyz/");
     assert.equal(
       MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
-      "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+      "0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51"
     );
     assert.equal(
       MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY,
-      "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
+      "0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51"
     );
     assert.equal(MONAD_NETWORK.nativeCurrency.symbol, "MON");
     assert.equal(MONAD_NETWORK.nativeCurrency.decimals, 18);

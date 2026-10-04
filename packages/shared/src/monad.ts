@@ -19,15 +19,17 @@ export const MONAD_TESTNET_USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3" a
 export const MONAD_X402_FACILITATOR_URL = "https://x402-facilitator.molandak.org" as const;
 
 /**
- * Official ERC-8004 Registries on Monad Testnet
- * Canonical addresses per docs.monad.xyz/guides/erc-8004
+ * Deployed MonadAgentRegistry and MonadA2AEscrow on Monad Testnet (Chain ID 10143)
  */
-export const MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY =
-  "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as const;
-export const MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY =
-  "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" as const;
+export const MONAD_DEPLOYED_AGENT_REGISTRY =
+  "0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51" as const;
+export const MONAD_DEPLOYED_A2A_ESCROW =
+  "0x31665c49a8e0565f3e496080a08f089d29bbcaae" as const;
+
+export const MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY = MONAD_DEPLOYED_AGENT_REGISTRY;
+export const MONAD_TESTNET_ERC8004_REPUTATION_REGISTRY = MONAD_DEPLOYED_AGENT_REGISTRY;
 export const MONAD_TESTNET_ERC8004_AGENT_REGISTRY =
-  `eip155:10143:${MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY}` as const;
+  `eip155:10143:${MONAD_DEPLOYED_AGENT_REGISTRY}` as const;
 
 export const MONAD_NETWORK = Object.freeze({
   chainId: MONAD_TESTNET_CHAIN_ID,

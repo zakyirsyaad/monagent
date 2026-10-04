@@ -42,8 +42,10 @@ canonical RPC       https://testnet-rpc.monad.xyz/
 explorer            https://testnet.monadexplorer.com / https://testnet.monadscan.com
 faucet              https://faucet.monad.xyz
 block time          1 second (~10,000 TPS)
-ERC-8004 Identity   0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
-ERC-8004 Reputation 0x8004BAa17C55a88189AE136b182e5fdA19dE9b63
+ERC-8004 Registry   0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51 (MonadAgentRegistry)
+A2A Escrow          0x31665c49a8e0565f3e496080a08f089d29bbcaae (MonadA2AEscrow)
+x402 Facilitator    https://x402-facilitator.molandak.org
+Testnet USDC        0x534b2f3A21130d7a60830c2Df862319e593943A3
 ```
 
 ---
