@@ -10,8 +10,7 @@ import {
 import { PluginCommand, type CommandIO } from "../../sdk.js";
 
 const erc8004IdentityAbi = parseAbi([
-  "function tokenURI(uint256 tokenId) view returns (string)",
-  "function getAgentWallet(uint256 agentId) view returns (address)",
+  "function getAgent(uint256 agentId) view returns ((string name, string description, address walletAddress, string endpoint, uint256 createdAt, bool active))",
   "function ownerOf(uint256 tokenId) view returns (address)",
 ]);
 
@@ -37,7 +36,7 @@ export class MonadIdentityGetCommand extends PluginCommand<GetIdentityResult> {
     const client = this.ctx.publicClient(MONAD_TESTNET_CHAIN_ID);
     const tokenIdBigInt = BigInt(agentId);
 
-    const [owner, walletAddress, uri] = await Promise.all([
+    const [owner, agentDetails] = await Promise.all([
       client.readContract({
         address: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
         abi: erc8004IdentityAbi,
@@ -47,27 +46,20 @@ export class MonadIdentityGetCommand extends PluginCommand<GetIdentityResult> {
       client.readContract({
         address: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
         abi: erc8004IdentityAbi,
-        functionName: "getAgentWallet",
-        args: [tokenIdBigInt],
-      }),
-      client.readContract({
-        address: MONAD_TESTNET_ERC8004_IDENTITY_REGISTRY,
-        abi: erc8004IdentityAbi,
-        functionName: "tokenURI",
+        functionName: "getAgent",
         args: [tokenIdBigInt],
       }),
     ]);
 
-    let card: MonadAgentCard | undefined;
-    if (uri.startsWith("data:application/json;utf8,")) {
-      try {
-        const decoded = decodeURIComponent(uri.replace("data:application/json;utf8,", ""));
-        const parsed = JSON.parse(decoded) as unknown;
-        card = monadAgentCardSchema.parse(parsed);
-      } catch {
-        io.warn(`Could not parse agent metadata URI for agentId ${agentId}`);
-      }
-    }
+    const card: MonadAgentCard = {
+      name: agentDetails.name,
+      description: agentDetails.description,
+      walletAddress: agentDetails.walletAddress,
+      endpoints: [agentDetails.endpoint],
+      supportedProtocols: ["mcp", "x402"],
+      active: agentDetails.active,
+    };
+    const walletAddress = agentDetails.walletAddress;
 
     return {
       agentId,

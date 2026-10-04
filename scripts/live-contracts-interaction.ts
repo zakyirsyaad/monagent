@@ -124,7 +124,7 @@ async function main() {
     functionName: "giveFeedback",
     args: [
       1n, // agentId 1
-      98, // rating +98/100
+      98n, // rating +98/100
       0, // decimals
       "speed",
       "accuracy",

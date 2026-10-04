@@ -9,9 +9,8 @@ import {
 import { PluginCommand, type CommandIO } from "../../sdk.js";
 
 const erc8004IdentityAbi = parseAbi([
-  "function register(string agentURI) returns (uint256 agentId)",
-  "function tokenURI(uint256 tokenId) view returns (string)",
-  "function getAgentWallet(uint256 agentId) view returns (address)",
+  "function registerAgent(string name, string description, address walletAddress, string endpoint) returns (uint256 agentId)",
+  "function getAgent(uint256 agentId) view returns ((string name, string description, address walletAddress, string endpoint, uint256 createdAt, bool active))",
   "function ownerOf(uint256 tokenId) view returns (address)",
 ]);
 
@@ -33,8 +32,13 @@ export class MonadIdentityRegisterCommand extends PluginCommand<RegisterIdentity
 
     const data = encodeFunctionData({
       abi: erc8004IdentityAbi,
-      functionName: "register",
-      args: [agentUri],
+      functionName: "registerAgent",
+      args: [
+        card.name,
+        card.description,
+        card.walletAddress as `0x${string}`,
+        card.endpoints[0] || "https://agent.xyz",
+      ],
     });
 
     const executor = this.ctx.walletExecutor(io, this.pluginCommandId);

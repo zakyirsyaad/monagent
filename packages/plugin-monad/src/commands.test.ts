@@ -34,16 +34,15 @@ function createMockContext(overrides?: {
     readContract: async ({ functionName }: { functionName: string }) => {
       if (functionName === "ownerOf") return "0x9999999999999999999999999999999999999999";
       if (functionName === "getAgentWallet") return "0x8888888888888888888888888888888888888888";
-      if (functionName === "tokenURI") {
-        const cardJson = JSON.stringify({
+      if (functionName === "getAgent") {
+        return {
           name: "MonadArbitrageAgent",
           description: "High speed trader",
-          endpoints: ["https://trader.monad.xyz"],
           walletAddress: "0x8888888888888888888888888888888888888888",
-          supportedProtocols: ["mcp"],
+          endpoint: "https://trader.monad.xyz",
+          createdAt: BigInt(Date.now()),
           active: true,
-        });
-        return `data:application/json;utf8,${encodeURIComponent(cardJson)}`;
+        };
       }
       if (functionName === "getSummary") {
         return [BigInt(10), BigInt(950), 0]; // 10 feedback, score 950 sum, 0 decimals -> 95 avg
