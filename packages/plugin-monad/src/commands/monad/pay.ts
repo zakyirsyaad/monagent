@@ -45,12 +45,14 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
       message: "Token symbol (MON, USDC, or 0x<address>)",
       default: "MON",
       required: false,
+      prompt: false,
     },
     memo: {
       type: InputFieldType.Text,
       flag: "memo",
       message: "Payment memo or reason (audit log note, not stored on-chain)",
       required: false,
+      prompt: false,
     },
     chainId: {
       type: InputFieldType.Text,
@@ -58,6 +60,7 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
       required: false,
+      prompt: false,
     },
   };
 

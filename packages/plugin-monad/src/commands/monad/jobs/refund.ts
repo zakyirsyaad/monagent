@@ -38,6 +38,7 @@ export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResu
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
       required: false,
+      prompt: false,
     },
   };
 

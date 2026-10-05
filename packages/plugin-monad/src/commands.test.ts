@@ -10,6 +10,7 @@ import {
   type CommandIO,
   type PluginCommandContext,
   type EvmExecutorResult,
+  type InputSchema,
   CommandError,
 } from "./sdk.js";
 import {
@@ -138,19 +139,19 @@ function createMockContext(overrides?: {
 }
 
 describe("MetaMask Agent Wallet Plugin for Monad", () => {
-  it("R2-1: every command schema is valid and transforms through host schemaToFlags & resolveInputs", async () => {
-    const commandsWithInputs = [
-      { name: "monad:pay", inputs: MonadPayCommand.inputs, mockFlags: { to: "0x1111111111111111111111111111111111111111", amount: "1.0" } },
-      { name: "monad:identity:register", inputs: MonadIdentityRegisterCommand.inputs, mockFlags: { name: "Agent", description: "Desc", walletAddress: "0x1111111111111111111111111111111111111111" } },
-      { name: "monad:identity:get", inputs: MonadIdentityGetCommand.inputs, mockFlags: { agentId: "1" } },
-      { name: "monad:reputation:check", inputs: MonadReputationCheckCommand.inputs, mockFlags: { agentId: "1" } },
-      { name: "monad:reputation:give", inputs: MonadReputationGiveCommand.inputs, mockFlags: { agentId: "1", value: "90" } },
-      { name: "monad:jobs:create", inputs: MonadJobsCreateCommand.inputs, mockFlags: { workerAddress: "0x1111111111111111111111111111111111111111", bountyMon: "0.5", taskDescription: "Test task" } },
-      { name: "monad:jobs:complete", inputs: MonadJobsCompleteCommand.inputs, mockFlags: { jobId: "1" } },
-      { name: "monad:jobs:refund", inputs: MonadJobsRefundCommand.inputs, mockFlags: { jobId: "1" } },
-      { name: "monad:x402:pay", inputs: MonadX402PayCommand.inputs, mockFlags: { url: "https://example.com", payer: "0x1111111111111111111111111111111111111111" } },
-    ];
+  const commandsWithInputs: { name: string; inputs: InputSchema; mockFlags: Record<string, string> }[] = [
+    { name: "monad:pay", inputs: MonadPayCommand.inputs, mockFlags: { to: "0x1111111111111111111111111111111111111111", amount: "1.0" } },
+    { name: "monad:identity:register", inputs: MonadIdentityRegisterCommand.inputs, mockFlags: { name: "Agent", description: "Desc", walletAddress: "0x1111111111111111111111111111111111111111" } },
+    { name: "monad:identity:get", inputs: MonadIdentityGetCommand.inputs, mockFlags: { agentId: "1" } },
+    { name: "monad:reputation:check", inputs: MonadReputationCheckCommand.inputs, mockFlags: { agentId: "1" } },
+    { name: "monad:reputation:give", inputs: MonadReputationGiveCommand.inputs, mockFlags: { agentId: "1", value: "90" } },
+    { name: "monad:jobs:create", inputs: MonadJobsCreateCommand.inputs, mockFlags: { workerAddress: "0x1111111111111111111111111111111111111111", bountyMon: "0.5", taskDescription: "Test task" } },
+    { name: "monad:jobs:complete", inputs: MonadJobsCompleteCommand.inputs, mockFlags: { jobId: "1" } },
+    { name: "monad:jobs:refund", inputs: MonadJobsRefundCommand.inputs, mockFlags: { jobId: "1" } },
+    { name: "monad:x402:pay", inputs: MonadX402PayCommand.inputs, mockFlags: { url: "https://example.com", payer: "0x1111111111111111111111111111111111111111" } },
+  ];
 
+  it("R2-1: every command schema is valid and transforms through host schemaToFlags & resolveInputs", async () => {
     for (const cmd of commandsWithInputs) {
       const flags = schemaToFlags(cmd.inputs);
       assert.ok(flags, `schemaToFlags failed for ${cmd.name}`);
@@ -162,6 +163,29 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       for (const [k, v] of Object.entries(cmd.mockFlags)) {
         assert.equal(resolved[k], v, `Field ${k} mismatch in ${cmd.name}`);
       }
+    }
+  });
+
+  it("optional inputs never prompt in an interactive terminal; missing required inputs still do", async () => {
+    for (const cmd of commandsWithInputs) {
+      const asked: string[] = [];
+      const asker = {
+        ask: async (req: { message: string }) => {
+          asked.push(req.message);
+          return "";
+        },
+      };
+
+      // Only required flags given: the host must not ask for any optional field.
+      await resolveInputs(cmd.inputs, cmd.mockFlags, asker as any);
+      assert.deepEqual(asked, [], `${cmd.name} prompted for optional inputs: ${asked.join(" | ")}`);
+
+      // Drop one required flag: the host should still ask for it interactively.
+      const [firstRequired] = Object.keys(cmd.mockFlags);
+      const { [firstRequired]: _omitted, ...withoutOne } = cmd.mockFlags;
+      asked.length = 0;
+      await resolveInputs(cmd.inputs, withoutOne, asker as any);
+      assert.equal(asked.length, 1, `${cmd.name} should prompt only for the missing required --${firstRequired}`);
     }
   });
 

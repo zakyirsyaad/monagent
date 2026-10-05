@@ -38,12 +38,14 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
       flag: "tag1",
       message: "Filter by primary category tag (e.g. speed)",
       required: false,
+      prompt: false,
     },
     tag2: {
       type: InputFieldType.Text,
       flag: "tag2",
       message: "Filter by secondary category tag (e.g. task)",
       required: false,
+      prompt: false,
     },
     chainId: {
       type: InputFieldType.Text,
@@ -51,6 +53,7 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
       required: false,
+      prompt: false,
     },
   };
 
