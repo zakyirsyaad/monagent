@@ -1,5 +1,5 @@
 {
-  "$schema": "https://claude.ai/schemas/marketplace.json",
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "monagent-marketplace",
   "description": "MonAgent plugins for Claude Code",
   "owner": {

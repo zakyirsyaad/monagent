@@ -44,12 +44,8 @@ export function getSafeEnv(): NodeJS.ProcessEnv {
   const allowedKeys = [
     "PATH",
     "HOME",
-    "USER",
-    "SHELL",
-    "LANG",
-    "NODE_ENV",
-    "MM_PASSWORD",
     "MM_CONFIG_DIR",
+    "MM_PASSWORD",
   ];
   const safeEnv: NodeJS.ProcessEnv = {};
   for (const key of allowedKeys) {
@@ -58,6 +54,32 @@ export function getSafeEnv(): NodeJS.ProcessEnv {
     }
   }
   return safeEnv;
+}
+
+/**
+ * Extract JSON object from text that may contain CLI warning/banner prefixes
+ */
+export function extractJsonPayload(text: string): any {
+  if (!text) return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {}
+
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      const candidate = text.slice(firstBrace, lastBrace + 1);
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {}
+  }
+
+  return null;
 }
 
 /**
@@ -152,7 +174,35 @@ export async function executeMmCommand(
         });
       }
 
-      // Check for AWAITING_MFA notice in stdout / stderr
+      // 1. Try parsing structured JSON response from stdout or stderr
+      const stdoutJson = extractJsonPayload(stdout);
+      const stderrJson = extractJsonPayload(stderr);
+      const finalJson = stdoutJson || stderrJson;
+
+      if (finalJson && typeof finalJson === "object") {
+        if (finalJson.ok === true) {
+          return resolve({
+            ok: true,
+            data: finalJson.data,
+            rawStdout: stdout,
+            rawStderr: stderr,
+          });
+        }
+        if (finalJson.ok === false && finalJson.error) {
+          return resolve({
+            ok: false,
+            error: {
+              code: finalJson.error.code || "COMMAND_FAILED",
+              message: finalJson.error.message || "Command failed",
+              hint: finalJson.error.hint,
+            },
+            rawStdout: stdout,
+            rawStderr: stderr,
+          });
+        }
+      }
+
+      // 2. If no final JSON was returned, check if execution ended/paused awaiting human MFA approval
       const combined = stdout + "\n" + stderr;
       if (
         combined.includes("[AWAITING_MFA]") ||
@@ -173,38 +223,7 @@ export async function executeMmCommand(
         });
       }
 
-      // Try parsing JSON from stdout
-      const trimmed = stdout.trim();
-      if (trimmed) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          if (parsed && typeof parsed === "object") {
-            if (parsed.ok === true) {
-              return resolve({
-                ok: true,
-                data: parsed.data,
-                rawStdout: stdout,
-                rawStderr: stderr,
-              });
-            }
-            if (parsed.ok === false && parsed.error) {
-              return resolve({
-                ok: false,
-                error: {
-                  code: parsed.error.code || "COMMAND_FAILED",
-                  message: parsed.error.message || "Command failed",
-                  hint: parsed.error.hint,
-                },
-                rawStdout: stdout,
-                rawStderr: stderr,
-              });
-            }
-          }
-        } catch {
-          // stdout wasn't valid JSON, fall through
-        }
-      }
-
+      // 3. Handle non-zero exit code when no structured error JSON was found
       if (code !== 0) {
         return resolve({
           ok: false,
@@ -217,9 +236,10 @@ export async function executeMmCommand(
         });
       }
 
+      const trimmedStdout = stdout.trim();
       return resolve({
         ok: true,
-        data: trimmed,
+        data: trimmedStdout,
         rawStdout: stdout,
         rawStderr: stderr,
       });

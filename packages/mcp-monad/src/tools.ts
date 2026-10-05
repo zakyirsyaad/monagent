@@ -121,7 +121,7 @@ export const TOOLS: ToolDefinition[] = [
         input.chainId === 143
           ? `https://monadexplorer.com/tx/${data?.transactionHash}`
           : `https://testnet.monadexplorer.com/tx/${data?.transactionHash}`;
-      return `Registered agent "${input.name}" with ID #${data?.agentId} on Monad ${input.chainId}.\nOwner: ${data?.owner}\nTransaction: ${data?.transactionHash}\nExplorer: ${explorerUrl}`;
+      return `Registered agent "${input.name}" with ID #${data?.agentId} on Monad ${input.chainId}.\nTransaction: ${data?.transactionHash}\nExplorer: ${explorerUrl}`;
     },
   },
 
@@ -145,11 +145,11 @@ export const TOOLS: ToolDefinition[] = [
         .describe("Monad chain ID: 10143 (Testnet default) or 143 (Mainnet)"),
     }),
     buildArgs: (input) => {
-      return ["--agentId", input.agentId, "--chain-id", String(input.chainId || 10143)];
+      return [input.agentId, "--chain-id", String(input.chainId || 10143)];
     },
     formatSummary: (data) => {
       const card = data?.card;
-      return `Agent ID: #${data?.agentId}\nOwner: ${data?.owner}\nWallet: ${data?.walletAddress}\nName: ${card?.name || "N/A"}\nDescription: ${card?.description || "N/A"}\nServices: ${JSON.stringify(card?.services || [])}`;
+      return `Agent ID: #${data?.agentId}\nOwner: ${data?.owner}\nWallet: ${data?.walletAddress}\nName: ${card?.name || "N/A"}\nDescription: ${card?.description || "N/A"}\nEndpoints: ${JSON.stringify(card?.endpoints || [])}`;
     },
   },
 
@@ -175,7 +175,7 @@ export const TOOLS: ToolDefinition[] = [
         .describe("Monad chain ID: 10143 (Testnet default) or 143 (Mainnet)"),
     }),
     buildArgs: (input) => {
-      const args = ["--agentId", input.agentId, "--chain-id", String(input.chainId || 10143)];
+      const args = [input.agentId, "--chain-id", String(input.chainId || 10143)];
       if (input.tag1) args.push("--tag1", input.tag1);
       if (input.tag2) args.push("--tag2", input.tag2);
       return args;
@@ -299,9 +299,11 @@ export const TOOLS: ToolDefinition[] = [
       taskDescription: z.string().min(1).describe("Description or hash of the work order"),
       deadlineHours: z
         .number()
-        .positive()
+        .int()
+        .min(1)
+        .max(168)
         .optional()
-        .describe("Task deadline in hours from now (e.g. 24)"),
+        .describe("Task deadline in integer hours (1 to 168, default 24)"),
       chainId: z
         .literal(10143)
         .describe("Chain ID must be 10143 (Escrow contract is only deployed on Monad Testnet)"),
@@ -323,7 +325,7 @@ export const TOOLS: ToolDefinition[] = [
       return args;
     },
     formatSummary: (data, input) => {
-      return `Created Job #${data?.jobId} on Monad Testnet.\nWorker: ${input.workerAddress}\nBounty: ${input.bountyMon} MON\nEscrow Tx: ${data?.escrowTransactionHash}\nExplorer: https://testnet.monadexplorer.com/tx/${data?.escrowTransactionHash}`;
+      return `Created Job #${data?.jobId} on Monad Testnet.\nWorker: ${input.workerAddress}\nBounty: ${input.bountyMon} MON\nEscrow Tx: ${data?.transactionHash || data?.escrowTransactionHash}\nExplorer: https://testnet.monadexplorer.com/tx/${data?.transactionHash || data?.escrowTransactionHash}`;
     },
   },
 
@@ -346,12 +348,12 @@ export const TOOLS: ToolDefinition[] = [
         .describe("Chain ID must be 10143 (Monad Testnet)"),
     }),
     buildArgs: (input) => {
-      const args = ["--jobId", input.jobId, "--chain-id", "10143"];
+      const args = [input.jobId, "--chain-id", "10143"];
       if (input.resultURI) args.push("--resultURI", input.resultURI);
       return args;
     },
     formatSummary: (data, input) => {
-      return `Released escrow for Job #${input.jobId} on Monad Testnet.\nCompletion Tx: ${data?.completionTransactionHash}\nExplorer: https://testnet.monadexplorer.com/tx/${data?.completionTransactionHash}`;
+      return `Released escrow for Job #${input.jobId} on Monad Testnet.\nCompletion Tx: ${data?.transactionHash || data?.completionTransactionHash}\nExplorer: https://testnet.monadexplorer.com/tx/${data?.transactionHash || data?.completionTransactionHash}`;
     },
   },
 
@@ -373,10 +375,10 @@ export const TOOLS: ToolDefinition[] = [
         .describe("Chain ID must be 10143 (Monad Testnet)"),
     }),
     buildArgs: (input) => {
-      return ["--jobId", input.jobId, "--chain-id", "10143"];
+      return [input.jobId, "--chain-id", "10143"];
     },
     formatSummary: (data, input) => {
-      return `Refunded escrow for Job #${input.jobId} back to creator on Monad Testnet.\nRefund Tx: ${data?.refundTransactionHash}\nExplorer: https://testnet.monadexplorer.com/tx/${data?.refundTransactionHash}`;
+      return `Refunded escrow for Job #${input.jobId} back to creator on Monad Testnet.\nRefund Tx: ${data?.transactionHash || data?.refundTransactionHash}\nExplorer: https://testnet.monadexplorer.com/tx/${data?.transactionHash || data?.refundTransactionHash}`;
     },
   },
 ];

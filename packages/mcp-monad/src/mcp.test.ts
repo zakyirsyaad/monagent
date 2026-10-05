@@ -32,16 +32,24 @@ describe("@zakyirsyaad/monagent-mcp: CLI execution & safety", () => {
     process.env.SECRET_KEY = "super_secret_key";
     process.env.AWS_SECRET_ACCESS_KEY = "aws_secret";
     process.env.MM_PASSWORD = "test_password";
+    process.env.SHELL = "/bin/zsh";
+    process.env.USER = "hacker";
 
     try {
       const safeEnv = getSafeEnv();
       assert.equal(safeEnv.SECRET_KEY, undefined);
       assert.equal(safeEnv.AWS_SECRET_ACCESS_KEY, undefined);
+      assert.equal(safeEnv.SHELL, undefined);
+      assert.equal(safeEnv.USER, undefined);
       assert.equal(safeEnv.MM_PASSWORD, "test_password");
     } finally {
       delete process.env.SECRET_KEY;
       delete process.env.AWS_SECRET_ACCESS_KEY;
+      delete process.env.SHELL;
+      delete process.env.USER;
       if (!originalEnv.MM_PASSWORD) delete process.env.MM_PASSWORD;
+      if (originalEnv.SHELL) process.env.SHELL = originalEnv.SHELL;
+      if (originalEnv.USER) process.env.USER = originalEnv.USER;
     }
   });
 
@@ -78,7 +86,7 @@ describe("@zakyirsyaad/monagent-mcp: CLI execution & safety", () => {
     }
   });
 
-  it("handles AWAITING_MFA notice and sets isAwaitingMfa flag", async () => {
+  it("handles AWAITING_MFA notice and sets isAwaitingMfa flag when no final transaction confirmed", async () => {
     const { dir, scriptPath } = createStubScript(`
       echo '[AWAITING_MFA] Please approve transaction in MetaMask' >&2
       exit 0
@@ -95,6 +103,54 @@ describe("@zakyirsyaad/monagent-mcp: CLI execution & safety", () => {
       assert.equal(result.ok, false);
       assert.equal(result.isAwaitingMfa, true);
       assert.equal(result.error?.code, "AWAITING_MFA");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("handles AWAITING_MFA followed by confirmed transaction without falsely reporting paused", async () => {
+    const { dir, scriptPath } = createStubScript(`
+      echo '[AWAITING_MFA] Please approve transaction in MetaMask' >&2
+      echo '{"ok": true, "data": {"transactionHash": "0x1111222233334444555566667777888899990000111122223333444455556666"}}'
+      exit 0
+    `);
+
+    try {
+      const result = await executeMmCommand({
+        subcommand: "pay",
+        args: ["--to", "0x1234567890123456789012345678901234567890"],
+        isWrite: true,
+        mmPath: scriptPath,
+      });
+
+      assert.equal(result.ok, true);
+      assert.equal(result.isAwaitingMfa, undefined);
+      assert.equal(
+        result.data?.transactionHash,
+        "0x1111222233334444555566667777888899990000111122223333444455556666"
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("parses plugin error from stderr even with warning banners", async () => {
+    const { dir, scriptPath } = createStubScript(`
+      echo "›   Warning: @metamask/agent-wallet update available" >&2
+      echo '{"ok": false, "error": {"code": "UNSUPPORTED_CHAIN", "message": "Monad chain 99999 is unsupported"}}' >&2
+      exit 1
+    `);
+
+    try {
+      const result = await executeMmCommand({
+        subcommand: "pay",
+        args: ["--to", "0x1234567890123456789012345678901234567890"],
+        mmPath: scriptPath,
+      });
+
+      assert.equal(result.ok, false);
+      assert.equal(result.error?.code, "UNSUPPORTED_CHAIN");
+      assert.match(result.error?.message || "", /unsupported/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -225,8 +281,14 @@ describe("@zakyirsyaad/monagent-mcp: MCP Server & Tools integration", () => {
   });
 
   it("executes read tool end-to-end against stub mm and returns structured response", async () => {
+    // Arguments passed are: $1=monad, $2=identity, $3=get, $4=42, $5=--chain-id, $6=10143, $7=--json
     const { dir, scriptPath } = createStubScript(`
-      echo '{"ok": true, "data": {"agentId": 42, "owner": "0x1111111111111111111111111111111111111111", "walletAddress": "0x2222222222222222222222222222222222222222", "card": {"name": "TestBot", "description": "AI Worker"}}}'
+      if [ "$4" != "42" ]; then
+        echo "Saw args: $@" >&2
+        echo '{"ok": false, "error": {"code": "MISSING_ARG", "message": "Missing required arg: agentId"}}' >&2
+        exit 1
+      fi
+      echo '{"ok": true, "data": {"agentId": 42, "owner": "0x1111111111111111111111111111111111111111", "walletAddress": "0x2222222222222222222222222222222222222222", "card": {"name": "TestBot", "description": "AI Worker", "endpoints": ["https://api.test"]}}}'
     `);
 
     try {
@@ -250,6 +312,7 @@ describe("@zakyirsyaad/monagent-mcp: MCP Server & Tools integration", () => {
       const text = response.content[0].text;
       assert.match(text, /Agent ID: #42/);
       assert.match(text, /TestBot/);
+      assert.match(text, /https:\/\/api\.test/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -337,5 +400,41 @@ describe("@zakyirsyaad/monagent-mcp: MCP Server & Tools integration", () => {
     assert.equal(response.isError, true);
     assert.match(response.content[0].text, /Input validation error/);
     assert.match(response.content[0].text, /Must be a valid 40-character hexadecimal EVM address/);
+  });
+
+  it("opt-in smoke test: calls real mm CLI if available for monad_identity_get", async () => {
+    let hasRealMm = false;
+    try {
+      await verifyMmEnvironment();
+      hasRealMm = true;
+    } catch {
+      hasRealMm = false;
+    }
+
+    if (!hasRealMm) {
+      // Skip if real mm is not installed / configured
+      return;
+    }
+
+    const server = createMonagentMcpServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+
+    const client = new Client({ name: "smoke-test", version: "1.0.0" }, { capabilities: {} });
+    await client.connect(clientTransport);
+
+    const response: any = await client.callTool({
+      name: "monad_identity_get",
+      arguments: {
+        agentId: "1",
+        chainId: 143,
+      },
+    });
+
+    assert.equal(response.isError, undefined, `Smoke test error: ${response.content?.[0]?.text}`);
+    assert.ok(response.content);
+    const text = response.content[0].text;
+    assert.match(text, /Agent ID: #1/);
+    assert.match(text, /Owner: 0x/);
   });
 });

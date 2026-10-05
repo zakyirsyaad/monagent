@@ -77,9 +77,9 @@ Or configure in your project or user `.mcp.json`:
 }
 ```
 
-### Codex / Generic MCP Clients
+### Generic MCP Clients (Cursor, Zed, etc.)
 
-Add to your MCP configuration file (e.g. `codex.json` or client settings):
+Add to your MCP configuration (such as `~/.cursor/mcp.json` or your MCP client's settings):
 ```json
 {
   "mcpServers": {
@@ -93,6 +93,8 @@ Add to your MCP configuration file (e.g. `codex.json` or client settings):
   }
 }
 ```
+
+*Note on BYOK Environment: If using headless BYOK password mode with `mm`, `MM_PASSWORD` can be provided in the `env` block above to unlock the mnemonic.*
 
 ---
 
