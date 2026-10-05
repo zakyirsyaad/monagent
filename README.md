@@ -182,8 +182,55 @@ mm monad jobs complete 1 --resultURI ipfs://<deliverable>   # client releases th
 mm monad jobs refund 1                                      # client, after the deadline
 ```
 
-For the full list of error codes and what an agent should do about each, see
-[SKILL.md](./skills/monad-agent/SKILL.md#error-codes).
+### Agent Skill & AI Assistants
+
+The official agent skill definition (`SKILL.md`) travels directly with the plugin package. After installing the plugin, an agent or user can install or inspect the skill:
+
+```bash
+# Print skill to stdout
+mm monad skill
+
+# Install directly to Claude Code project
+mm monad skill --install claude-project
+
+# Or install to other supported targets: claude-user, codex-project, codex-user, agents-project, agents-user
+mm monad skill --install codex-project
+```
+
+#### Claude Code Marketplace & Plugin
+
+You can also install MonAgent directly into Claude Code from this repository:
+
+```bash
+# Add this repository as a marketplace
+/plugin marketplace add zakyirsyaad/monagent
+
+# Install the MonAgent plugin
+/plugin install monagent
+```
+
+*Note: Initial setup (`mm login` and `mm init`) and transaction approvals (`[AWAITING_MFA]`) are performed manually by a human operator on the machine.*
+
+#### Model Context Protocol (MCP) Server
+
+Any MCP-compliant client (Claude Code, Codex, Cursor, etc.) can interact with MonAgent via the standalone `@zakyirsyaad/monagent-mcp` package:
+
+```bash
+# Add to Claude Code via MCP CLI
+claude mcp add monagent -- npx -y @zakyirsyaad/monagent-mcp
+```
+
+Or add to your `.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "monagent": {
+      "command": "npx",
+      "args": ["-y", "@zakyirsyaad/monagent-mcp"]
+    }
+  }
+}
+```
 
 ---
 
