@@ -8,6 +8,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
   ALLOWED_SUBCOMMANDS,
   executeMmCommand,
+  extractJsonPayload,
   getSafeEnv,
   resolveMmPath,
   verifyMmEnvironment,
@@ -135,6 +136,42 @@ describe("@zakyirsyaad/monagent-mcp: CLI execution & safety", () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("reports the real error when a write is rejected after an AWAITING_MFA notice", async () => {
+    // Host shape: the notice goes to stdout as an NDJSON line, the error JSON goes to stderr, exit code 1.
+    const { dir, scriptPath } = createStubScript(`
+      echo '{"_notice":{"kind":"AWAITING_MFA","message":"approve in MetaMask","pollingId":"abc"}}'
+      echo '{"ok": false, "error": {"code": "TRANSACTION_FAILED", "message": "Request rejected by user", "hint": "Retry and approve"}}' >&2
+      exit 1
+    `);
+
+    try {
+      const result = await executeMmCommand({
+        subcommand: "pay",
+        args: ["--to", "0x1234567890123456789012345678901234567890"],
+        isWrite: true,
+        mmPath: scriptPath,
+      });
+
+      assert.equal(result.ok, false);
+      assert.equal(result.isAwaitingMfa, undefined);
+      assert.equal(result.error?.code, "TRANSACTION_FAILED");
+      assert.equal(result.error?.message, "Request rejected by user");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("extractJsonPayload ignores _notice objects and returns null when there is no result", () => {
+    const notice = '{"_notice":{"kind":"AWAITING_MFA","message":"approve"}}';
+    assert.equal(extractJsonPayload(notice), null);
+    assert.equal(extractJsonPayload(`${notice}\n${notice}`), null);
+    assert.equal(extractJsonPayload(""), null);
+
+    const withResult = `${notice}\n{\n  "ok": true,\n  "data": { "transactionHash": "0xabc" }\n}`;
+    assert.equal(extractJsonPayload(withResult)?.ok, true);
+    assert.equal(extractJsonPayload(withResult)?.data?.transactionHash, "0xabc");
   });
 
   it("parses plugin error from stderr even with warning banners", async () => {

@@ -59,7 +59,8 @@ export function getSafeEnv(): NodeJS.ProcessEnv {
 /**
  * Extract JSON object from text that may contain CLI warning/banner prefixes
  * or multiple NDJSON lines (e.g. `_notice` followed by the final `ok: true` command output).
- * Scans top-level balanced `{...}` blocks and selects the last object that has a boolean `ok`.
+ * Scans top-level balanced `{...}` blocks and returns the last object that has a boolean `ok`,
+ * or `null` if there is none (a lone `_notice` object is not a result).
  */
 export function extractJsonPayload(text: string): any {
   if (!text) return null;
@@ -117,7 +118,9 @@ export function extractJsonPayload(text: string): any {
     }
   }
 
-  return objects[objects.length - 1] || null;
+  // No final result in this stream (for example only `_notice` lines). Return null so the caller can
+  // look at the other stream instead of mistaking a notice for the command's result.
+  return null;
 }
 
 /**
