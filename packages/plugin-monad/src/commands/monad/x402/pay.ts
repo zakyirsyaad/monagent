@@ -49,12 +49,14 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       message: "HTTP method (GET or POST)",
       default: "GET",
       required: false,
+      prompt: false,
     },
     body: {
       type: InputFieldType.Text,
       flag: "body",
       message: "HTTP request JSON body for POST requests",
       required: false,
+      prompt: false,
     },
     maxSpend: {
       type: InputFieldType.Text,
@@ -62,6 +64,7 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       aliases: ["max-spend"],
       message: "Maximum spend limit in token base units (e.g. 1000000 for 1 USDC)",
       required: false,
+      prompt: false,
     },
     payer: {
       type: InputFieldType.Text,
@@ -75,6 +78,7 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
       required: false,
+      prompt: false,
     },
   };
 

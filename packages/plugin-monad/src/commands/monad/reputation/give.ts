@@ -44,30 +44,35 @@ export class MonadReputationGiveCommand extends BaseMonadPluginCommand<GiveReput
       flag: "decimals",
       message: "Decimals for score (default 0)",
       required: false,
+      prompt: false,
     },
     tag1: {
       type: InputFieldType.Text,
       flag: "tag1",
       message: "Primary feedback category tag (e.g. speed)",
       required: false,
+      prompt: false,
     },
     tag2: {
       type: InputFieldType.Text,
       flag: "tag2",
       message: "Secondary category tag (e.g. accuracy)",
       required: false,
+      prompt: false,
     },
     endpoint: {
       type: InputFieldType.Text,
       flag: "endpoint",
       message: "Service endpoint that performed the task",
       required: false,
+      prompt: false,
     },
     feedbackURI: {
       type: InputFieldType.Text,
       flag: "feedbackURI",
       message: "URI pointing to detailed review or task proof",
       required: false,
+      prompt: false,
     },
     chainId: {
       type: InputFieldType.Text,
@@ -75,6 +80,7 @@ export class MonadReputationGiveCommand extends BaseMonadPluginCommand<GiveReput
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
       required: false,
+      prompt: false,
     },
   };
 

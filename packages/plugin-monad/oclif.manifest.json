@@ -125,13 +125,15 @@
           "flag": "token",
           "message": "Token symbol (MON, USDC, or 0x<address>)",
           "default": "MON",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "memo": {
           "type": "text",
           "flag": "memo",
           "message": "Payment memo or reason (audit log note, not stored on-chain)",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "chainId": {
           "type": "text",
@@ -140,7 +142,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -258,7 +261,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -400,7 +404,8 @@
           "type": "text",
           "flag": "endpoint",
           "message": "Primary service endpoint URL",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "chainId": {
           "type": "text",
@@ -409,7 +414,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -532,7 +538,8 @@
           "type": "text",
           "flag": "resultURI",
           "message": "Deliverable URI or proof hash",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "chainId": {
           "type": "text",
@@ -541,7 +548,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -683,7 +691,8 @@
           "type": "text",
           "flag": "deadlineHours",
           "message": "Review and task window in hours (default 24)",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "chainId": {
           "type": "text",
@@ -692,7 +701,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -811,7 +821,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -941,13 +952,15 @@
           "type": "text",
           "flag": "tag1",
           "message": "Filter by primary category tag (e.g. speed)",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "tag2": {
           "type": "text",
           "flag": "tag2",
           "message": "Filter by secondary category tag (e.g. task)",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "chainId": {
           "type": "text",
@@ -956,7 +969,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -1113,31 +1127,36 @@
           "type": "text",
           "flag": "decimals",
           "message": "Decimals for score (default 0)",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "tag1": {
           "type": "text",
           "flag": "tag1",
           "message": "Primary feedback category tag (e.g. speed)",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "tag2": {
           "type": "text",
           "flag": "tag2",
           "message": "Secondary category tag (e.g. accuracy)",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "endpoint": {
           "type": "text",
           "flag": "endpoint",
           "message": "Service endpoint that performed the task",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "feedbackURI": {
           "type": "text",
           "flag": "feedbackURI",
           "message": "URI pointing to detailed review or task proof",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "chainId": {
           "type": "text",
@@ -1146,7 +1165,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -1287,13 +1307,15 @@
           "flag": "method",
           "message": "HTTP method (GET or POST)",
           "default": "GET",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "body": {
           "type": "text",
           "flag": "body",
           "message": "HTTP request JSON body for POST requests",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "maxSpend": {
           "type": "text",
@@ -1302,7 +1324,8 @@
             "max-spend"
           ],
           "message": "Maximum spend limit in token base units (e.g. 1000000 for 1 USDC)",
-          "required": false
+          "required": false,
+          "prompt": false
         },
         "payer": {
           "type": "text",
@@ -1317,7 +1340,8 @@
             "chainId"
           ],
           "message": "Monad chain ID (10143 for testnet, 143 for mainnet)",
-          "required": false
+          "required": false,
+          "prompt": false
         }
       },
       "isESM": true,
@@ -1330,5 +1354,5 @@
       ]
     }
   },
-  "version": "0.1.4"
+  "version": "0.1.5"
 }

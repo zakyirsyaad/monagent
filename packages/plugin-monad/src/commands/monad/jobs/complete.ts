@@ -38,6 +38,7 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       flag: "resultURI",
       message: "Deliverable URI or proof hash",
       required: false,
+      prompt: false,
     },
     chainId: {
       type: InputFieldType.Text,
@@ -45,6 +46,7 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
       required: false,
+      prompt: false,
     },
   };
 

@@ -51,6 +51,7 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
       flag: "endpoint",
       message: "Primary service endpoint URL",
       required: false,
+      prompt: false,
     },
     chainId: {
       type: InputFieldType.Text,
@@ -58,6 +59,7 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
       required: false,
+      prompt: false,
     },
   };
 

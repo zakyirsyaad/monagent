@@ -51,6 +51,7 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
       flag: "deadlineHours",
       message: "Review and task window in hours (default 24)",
       required: false,
+      prompt: false,
     },
     chainId: {
       type: InputFieldType.Text,
@@ -58,6 +59,7 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
       aliases: ["chainId"],
       message: "Monad chain ID (10143 for testnet, 143 for mainnet)",
       required: false,
+      prompt: false,
     },
   };
 
