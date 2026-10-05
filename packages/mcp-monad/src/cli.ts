@@ -58,28 +58,66 @@ export function getSafeEnv(): NodeJS.ProcessEnv {
 
 /**
  * Extract JSON object from text that may contain CLI warning/banner prefixes
+ * or multiple NDJSON lines (e.g. `_notice` followed by the final `ok: true` command output).
+ * Scans top-level balanced `{...}` blocks and selects the last object that has a boolean `ok`.
  */
 export function extractJsonPayload(text: string): any {
   if (!text) return null;
   const trimmed = text.trim();
   if (!trimmed) return null;
 
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (parsed && typeof parsed === "object") return parsed;
-  } catch {}
+  const objects: any[] = [];
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let startIdx = -1;
 
-  const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    try {
-      const candidate = text.slice(firstBrace, lastBrace + 1);
-      const parsed = JSON.parse(candidate);
-      if (parsed && typeof parsed === "object") return parsed;
-    } catch {}
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      continue;
+    }
+
+    if (ch === "{") {
+      if (depth === 0) startIdx = i;
+      depth++;
+    } else if (ch === "}") {
+      if (depth > 0) {
+        depth--;
+        if (depth === 0 && startIdx !== -1) {
+          const chunk = text.slice(startIdx, i + 1);
+          try {
+            const parsed = JSON.parse(chunk);
+            if (parsed && typeof parsed === "object") {
+              objects.push(parsed);
+            }
+          } catch {}
+          startIdx = -1;
+        }
+      }
+    }
   }
 
-  return null;
+  // Prioritize the last object that has a boolean `ok` property
+  for (let i = objects.length - 1; i >= 0; i--) {
+    if (typeof objects[i]?.ok === "boolean") {
+      return objects[i];
+    }
+  }
+
+  return objects[objects.length - 1] || null;
 }
 
 /**

@@ -88,7 +88,7 @@ describe("@zakyirsyaad/monagent-mcp: CLI execution & safety", () => {
 
   it("handles AWAITING_MFA notice and sets isAwaitingMfa flag when no final transaction confirmed", async () => {
     const { dir, scriptPath } = createStubScript(`
-      echo '[AWAITING_MFA] Please approve transaction in MetaMask' >&2
+      echo '{"_notice":{"kind":"AWAITING_MFA","message":"approve in MetaMask","pollingId":"abc"}}'
       exit 0
     `);
 
@@ -108,10 +108,13 @@ describe("@zakyirsyaad/monagent-mcp: CLI execution & safety", () => {
     }
   });
 
-  it("handles AWAITING_MFA followed by confirmed transaction without falsely reporting paused", async () => {
+  it("handles NDJSON AWAITING_MFA notice followed by pretty-printed confirmed transaction without falsely reporting paused", async () => {
     const { dir, scriptPath } = createStubScript(`
-      echo '[AWAITING_MFA] Please approve transaction in MetaMask' >&2
-      echo '{"ok": true, "data": {"transactionHash": "0x1111222233334444555566667777888899990000111122223333444455556666"}}'
+      echo '{"_notice":{"kind":"AWAITING_MFA","message":"approve in MetaMask","pollingId":"abc"}}'
+      echo '{'
+      echo '  "ok": true,'
+      echo '  "data": { "transactionHash": "0x1111222233334444555566667777888899990000111122223333444455556666" }'
+      echo '}'
       exit 0
     `);
 
