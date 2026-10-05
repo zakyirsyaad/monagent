@@ -9,3 +9,4 @@ export * from "./commands/monad/x402/pay.js";
 export * from "./commands/monad/jobs/create.js";
 export * from "./commands/monad/jobs/complete.js";
 export * from "./commands/monad/jobs/refund.js";
+export * from "./commands/monad/skill.js";

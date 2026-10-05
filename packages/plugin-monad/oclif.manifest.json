@@ -154,6 +154,113 @@
         "pay.js"
       ]
     },
+    "monad:skill": {
+      "aliases": [],
+      "args": {},
+      "description": "Print or install the MonAgent AI agent skill definition (SKILL.md)",
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "install": {
+          "description": "Install target destination (claude-project, claude-user, agents-project, agents-user, codex-project, codex-user)",
+          "name": "install",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "force": {
+          "description": "Overwrite existing skill file without error",
+          "name": "force",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "monad:skill",
+      "pluginAlias": "@zakyirsyaad/monagent-plugin",
+      "pluginName": "@zakyirsyaad/monagent-plugin",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "requiresFees": false,
+      "byokPasswordFlags": {
+        "password": {
+          "description": "Password to unlock the BYOK mnemonic (BYOK mode only)",
+          "env": "MM_PASSWORD",
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "walletTimeoutFlags": {
+        "wallet-timeout": {
+          "description": "Seconds to wait per wallet job (MFA/signing), max 600; overrides config walletTimeoutSeconds",
+          "min": 1,
+          "max": 600,
+          "input": [],
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "STRUCTURED_FORMATS": {},
+      "inputs": {
+        "install": {
+          "type": "text",
+          "flag": "install",
+          "message": "Install target destination (claude-project, claude-user, agents-project, agents-user, codex-project, codex-user)",
+          "required": false,
+          "prompt": false
+        },
+        "force": {
+          "type": "boolean",
+          "flag": "force",
+          "message": "Overwrite existing skill file without error",
+          "default": false,
+          "required": false,
+          "prompt": false
+        }
+      },
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "monad",
+        "skill.js"
+      ]
+    },
     "monad:identity:get": {
       "aliases": [],
       "args": {
@@ -1354,5 +1461,5 @@
       ]
     }
   },
-  "version": "0.1.5"
+  "version": "0.2.0"
 }

@@ -28,6 +28,11 @@ import { MonadJobsCreateCommand } from "./commands/monad/jobs/create.js";
 import { MonadJobsCompleteCommand } from "./commands/monad/jobs/complete.js";
 import { MonadJobsRefundCommand } from "./commands/monad/jobs/refund.js";
 import { MonadX402PayCommand } from "./commands/monad/x402/pay.js";
+import { MonadSkillCommand } from "./commands/monad/skill.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 function createMockIO(inputs: Record<string, unknown>): CommandIO & { logs: string[] } {
   const normalizedInputs: Record<string, unknown> = { ...inputs };
@@ -790,4 +795,83 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("monad:skill schema is valid and transforms through host schemaToFlags & resolveInputs", async () => {
+    const flags = schemaToFlags(MonadSkillCommand.inputs);
+    assert.ok(flags);
+    assert.ok(!("undefined" in flags));
+    assert.ok("install" in flags);
+    assert.ok("force" in flags);
+
+    const resolved = await resolveInputs(MonadSkillCommand.inputs, { install: "claude-project", force: "true" }, null);
+    assert.equal(resolved.install, "claude-project");
+    assert.equal(resolved.force, true);
+  });
+
+  it("npm pack --dry-run includes skills/monad-agent/SKILL.md in the package tarball", () => {
+    const pkgDir = path.resolve(import.meta.dirname, "..");
+    const res = spawnSync("npm", ["pack", "--dry-run"], {
+      cwd: pkgDir,
+      encoding: "utf8",
+    });
+    const combinedOutput = (res.stdout || "") + "\n" + (res.stderr || "");
+    assert.match(combinedOutput, /skills\/monad-agent\/SKILL\.md/);
+  });
+
+  it("monad:skill prints skill content when run without --install", async () => {
+    const cmd = new MonadSkillCommand();
+    const ctx = createMockContext();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({});
+    const result = await cmd.execute(io);
+
+    assert.equal(result.installed, false);
+    assert.ok(result.content);
+    assert.match(result.content, /name:\s*monad-agent/);
+    assert.ok(io.logs.some((log: string) => log.includes("name: monad-agent")));
+  });
+
+  it("monad:skill installs skill, guards against overwrite without --force, and prevents path escapes", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "monad-skill-test-"));
+    const originalCwd = process.cwd();
+    process.chdir(tempDir);
+
+    try {
+      const cmd = new MonadSkillCommand();
+      const ctx = createMockContext();
+      (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+      // 1. Install to claude-project in tempDir
+      const io1 = createMockIO({ install: "claude-project" });
+      const res1 = await cmd.execute(io1);
+      assert.equal(res1.installed, true);
+      assert.equal(res1.target, "claude-project");
+      assert.ok(fs.existsSync(res1.path!));
+      assert.match(fs.readFileSync(res1.path!, "utf8"), /name:\s*monad-agent/);
+
+      // 2. Re-install without --force fails with FILE_EXISTS
+      const io2 = createMockIO({ install: "claude-project" });
+      await assert.rejects(
+        cmd.execute(io2),
+        (err: any) => err instanceof CommandError && err.code === "FILE_EXISTS"
+      );
+
+      // 3. Re-install with --force succeeds
+      const io3 = createMockIO({ install: "claude-project", force: "true" });
+      const res3 = await cmd.execute(io3);
+      assert.equal(res3.installed, true);
+
+      // 4. Invalid install target fails with INVALID_INPUT
+      const io4 = createMockIO({ install: "unsupported-target" });
+      await assert.rejects(
+        cmd.execute(io4),
+        (err: any) => err instanceof CommandError && err.code === "INVALID_INPUT"
+      );
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });
+
