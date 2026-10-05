@@ -151,7 +151,6 @@ export class MonadSkillCommand extends BaseMonadPluginCommand<MonadSkillResult> 
     const isForce = Boolean(rawInputs.force);
 
     if (!installTarget) {
-      io.emit(content);
       return {
         installed: false,
         content,
@@ -174,7 +173,6 @@ export class MonadSkillCommand extends BaseMonadPluginCommand<MonadSkillResult> 
     }
 
     fs.writeFileSync(fullPath, content, "utf8");
-    io.emit(`Installed MonAgent skill to ${fullPath}`);
 
     return {
       installed: true,

@@ -829,7 +829,31 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     assert.equal(result.installed, false);
     assert.ok(result.content);
     assert.match(result.content, /name:\s*monad-agent/);
-    assert.ok(io.logs.some((log: string) => log.includes("name: monad-agent")));
+    assert.equal(io.logs.length, 0);
+  });
+
+  it("monad:skill outputs skill text exactly once without duplicate emission", async () => {
+    const cmd = new MonadSkillCommand();
+    const ctx = createMockContext();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({});
+    const result = await cmd.execute(io);
+
+    const emittedOccurrences = io.logs.reduce(
+      (count: number, log: string) => count + (log.includes("name: monad-agent") ? 1 : 0),
+      0
+    );
+    const returnedOccurrences = result.content?.includes("name: monad-agent") ? 1 : 0;
+    const totalOccurrences = emittedOccurrences + returnedOccurrences;
+
+    assert.equal(
+      totalOccurrences,
+      1,
+      `Skill text must appear exactly once across emitted logs and returned result (emitted: ${emittedOccurrences}, returned: ${returnedOccurrences})`
+    );
+    assert.equal(emittedOccurrences, 0, "Skill text should not be emitted via io.emit");
+    assert.equal(returnedOccurrences, 1, "Skill text should be returned in result.content");
   });
 
   it("monad:skill installs skill, guards against overwrite without --force, and prevents path escapes", async () => {
@@ -849,6 +873,7 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       assert.equal(res1.target, "claude-project");
       assert.ok(fs.existsSync(res1.path!));
       assert.match(fs.readFileSync(res1.path!, "utf8"), /name:\s*monad-agent/);
+      assert.equal(io1.logs.length, 0, "Install path should not be emitted to io.logs");
 
       // 2. Re-install without --force fails with FILE_EXISTS
       const io2 = createMockIO({ install: "claude-project" });

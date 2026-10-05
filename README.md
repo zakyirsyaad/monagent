@@ -195,6 +195,9 @@ mm monad skill --install claude-project
 
 # Or install to other supported targets: claude-user, codex-project, codex-user, agents-project, agents-user
 mm monad skill --install codex-project
+
+# Extract clean markdown file directly
+mm monad skill --json | jq -r .data.content > SKILL.md
 ```
 
 #### Claude Code Marketplace & Plugin
