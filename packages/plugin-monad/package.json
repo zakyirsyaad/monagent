@@ -1,6 +1,6 @@
 {
   "name": "@zakyirsyaad/monagent-plugin",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "MetaMask Agent Wallet Plugin for Monad A2A Commerce & Trust (ERC-8004 & x402)",
   "type": "module",
   "keywords": [
@@ -14,11 +14,12 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist",
+    "skills",
     "oclif.manifest.json",
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && oclif manifest",
+    "build": "node scripts/sync-skill.mjs && tsc -p tsconfig.json && oclif manifest",
     "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
@@ -166,6 +167,12 @@
         "targetChains": [
           10143
         ]
+      },
+      {
+        "id": "monad:skill",
+        "capabilities": [],
+        "dataAccess": [],
+        "targetChains": "any"
       }
     ]
   }

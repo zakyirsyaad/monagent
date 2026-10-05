@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "monagent": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@zakyirsyaad/monagent-mcp@0.1.0"
+      ]
+    }
+  }
+}

@@ -5,6 +5,7 @@
   },
   "include": [
     "packages/plugin-monad/src/**/*.ts",
+    "packages/mcp-monad/src/**/*.ts",
     "scripts/**/*.ts"
   ],
   "exclude": [

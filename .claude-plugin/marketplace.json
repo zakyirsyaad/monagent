@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "monagent-marketplace",
+  "description": "MonAgent plugins for Claude Code",
+  "owner": {
+    "name": "Zaky Irsyad Rais"
+  },
+  "plugins": [
+    {
+      "name": "monagent",
+      "description": "MetaMask Agent Wallet Plugin for Monad A2A Commerce & Trust (ERC-8004 & x402)",
+      "version": "0.2.0",
+      "author": {
+        "name": "Zaky Irsyad Rais"
+      },
+      "source": "./claude-plugin"
+    }
+  ]
+}

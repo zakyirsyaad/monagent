@@ -21,7 +21,10 @@ This project implements **Agent-to-Agent (A2A) Commerce & Trustless Infrastructu
 ```
 packages/
   plugin-monad/     MetaMask Agent Wallet Plugin (@metamask/agent-wallet oclif-plugin)
-                    Commands: mm monad:pay, mm monad:identity:*, mm monad:reputation:*, mm monad:jobs:*, mm monad:x402:*
+                    Commands: mm monad:pay, mm monad:identity:*, mm monad:reputation:*, mm monad:jobs:*, mm monad:x402:*, mm monad:skill
+  mcp-monad/        Model Context Protocol (MCP) server wrapping mm CLI for AI agent runtimes
+claude-plugin/      Claude Code plugin packaging skills and .mcp.json
+.claude-plugin/     Claude Code marketplace manifest (marketplace.json)
 skills/
   monad-agent/      Official hackathon skill definition (SKILL.md) for AI agents
 scripts/

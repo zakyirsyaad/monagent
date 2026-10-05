@@ -1,0 +1,36 @@
+{
+  "name": "@zakyirsyaad/monagent-mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol (MCP) server for Monad Agent Wallet (MetaMask mm CLI wrapper)",
+  "type": "module",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "monad",
+    "metamask-agent-wallet",
+    "agentic-commerce",
+    "erc-8004"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "monagent-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "test": "tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
