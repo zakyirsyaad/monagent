@@ -1,6 +1,6 @@
 {
   "name": "@zakyirsyaad/monagent-plugin",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MetaMask Agent Wallet Plugin for Monad A2A Commerce & Trust (ERC-8004 & x402)",
   "type": "module",
   "keywords": [
@@ -12,6 +12,9 @@
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "skills",

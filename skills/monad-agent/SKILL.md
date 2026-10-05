@@ -24,6 +24,7 @@ After installing the plugin, you can inspect or install this skill into your age
 ```bash
 mm monad skill                                 # print skill definition
 mm monad skill --install claude-project        # or claude-user, codex-project, codex-user, agents-project
+mm monad skill --json | jq -r .data.content > SKILL.md  # extract markdown file
 ```
 
 The wallet needs MON for gas: testnet from `https://faucet.monad.xyz`, real MON on mainnet.

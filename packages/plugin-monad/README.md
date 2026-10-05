@@ -31,11 +31,14 @@ Every command takes `--chain-id 10143|143` (default `10143`, testnet). Add `--js
 | `mm monad reputation give` | Submit feedback to the official ERC-8004 Reputation Registry | 10143, 143 |
 | `mm monad x402 pay` | Call an HTTP 402 API, signing an EIP-3009 USDC authorization | 10143, 143 |
 | `mm monad jobs create` / `complete <jobId>` / `refund <jobId>` | Fund, release or refund a task escrow | 10143 |
+| `mm monad skill` | Print or install the agent skill definition (`--install <target>`) | any |
 
 ```bash
 mm monad identity get 1 --chain-id 143
 mm monad pay --to 0x… --amount 1.5 --token USDC --chain-id 143
 mm monad x402 pay --url https://api.example.com/tool --payer 0x<your mm wallet> --maxSpend 100000
+mm monad skill --install claude-project
+mm monad skill --json | jq -r .data.content > SKILL.md
 ```
 
 ## Contracts
