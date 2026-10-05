@@ -10,12 +10,17 @@ signature is executed and policy-checked by MetaMask.
 
 ```bash
 npm install -g @metamask/agent-wallet@7
+mm config set experimentalPlugins true
+mm config set experimentalAllowUnverifiedInstalls true
 mm plugins install @zakyirsyaad/monagent-plugin --accept-permissions
 mm monad identity get 1 --chain-id 143
 ```
 
-[npm package](https://www.npmjs.com/package/@zakyirsyaad/monagent-plugin) ·
-[Agent skill (SKILL.md)](./skills/monad-agent/SKILL.md)
+[Plugin on npm](https://www.npmjs.com/package/@zakyirsyaad/monagent-plugin) ·
+[MCP server on npm](https://www.npmjs.com/package/@zakyirsyaad/monagent-mcp) ·
+[Agent skill (SKILL.md)](./skills/monad-agent/SKILL.md) ·
+[Use with AI agents](#use-with-ai-agents) ·
+[Known limits](#known-limits)
 
 ---
 
@@ -40,6 +45,8 @@ delivered → rate the worker. Each step is one `mm` command an agent can call w
 ```mermaid
 flowchart LR
   A[AI agent] -->|"mm monad … --json"| H[MetaMask Agent Wallet CLI]
+  A -->|MCP tools| K[monagent-mcp]
+  K -->|"runs mm, no shell"| H
   H -->|restricted context| P[MonAgent plugin]
   P -->|reads| R[(Monad RPC)]
   P -->|tx / EIP-712 request| E[MetaMask wallet executor]
@@ -60,7 +67,8 @@ flowchart LR
 
 ### Safety rules the plugin enforces
 - **Testnet by default.** Every command uses `10143` unless `--chain-id 143` is passed. Other chain ids
-  fail with `UNSUPPORTED_CHAIN` before anything is signed.
+  fail with `UNSUPPORTED_CHAIN` before anything is signed. For writes, pass `--chain-id 143` explicitly
+  (see [Known limits](#known-limits)).
 - **x402 signs exactly what it checked.** It only accepts a payment requirement on the requested chain,
   enforces `--maxSpend` on that requirement, signs only that one, then recovers the signer and aborts
   (`PAYER_MISMATCH`) if it isn't `--payer`. Nothing is sent to the server unless all checks pass.
@@ -88,6 +96,23 @@ The ERC-8004 registries are the official deployments; the escrow is this repo's
 
 ---
 
+## Known limits
+
+- **Writes on Monad Testnet (`10143`) don't go through MetaMask today.** With `@metamask/agent-wallet`
+  7.0.0, the wallet service answers `Invalid chainId` (HTTP 400) when it estimates gas or tracks blocks
+  for chain `10143`, so a write waits on `Submitting...` and nothing is sent. The plugin builds the
+  transaction correctly and reads on testnet work. Use `--chain-id 143` for writes. This is a MetaMask
+  service limit, not something the plugin can work around.
+- **Escrow is testnet-only.** `MonadA2AEscrow` is deployed on `10143`, so `mm monad jobs …` can't complete
+  a write through MetaMask right now (see above). The contract is covered by the Foundry tests and the
+  contract simulation tests in this repo, and the commands fail early with `ESCROW_NOT_DEPLOYED` on mainnet.
+- **A person is always in the loop for writes.** `mm login` and `mm init` are done once by a human, and
+  each write can stop at `[AWAITING_MFA]` until it is approved in MetaMask. Agents and the MCP server
+  can't (and shouldn't) bypass that.
+- **`--walletAddress` and `--memo` are not stored on-chain** (see the command reference).
+
+---
+
 ## Quickstart
 
 Requires Node.js 22+ and `@metamask/agent-wallet` **6.2+ or 7.x**.
@@ -109,8 +134,10 @@ mm login
 mm init        # first run only
 ```
 
-Fund the wallet with MON for gas: testnet from [faucet.monad.xyz](https://faucet.monad.xyz), mainnet MON
-for `--chain-id 143`.
+Writes need MON for gas on the chain you write to. Use mainnet (`--chain-id 143`) for writes, because
+MetaMask currently rejects them on testnet (see [Known limits](#known-limits)). Reads on both chains need
+no funds. Testnet MON, useful for experiments with reads and your own tools, is at
+[faucet.monad.xyz](https://faucet.monad.xyz).
 
 ---
 
@@ -173,7 +200,7 @@ mm monad x402 pay \
 - `--payer` must be the wallet `mm` signs with; any mismatch aborts before payment.
 - The server must offer an `exact` requirement on the chosen chain, otherwise `UNSUPPORTED_PAYMENT_NETWORK`.
 
-### Escrow (testnet)
+### Escrow (deployed on testnet only; see Known limits)
 ```bash
 mm monad jobs create --workerAddress 0x7777777777777777777777777777777777777777 \
   --bountyMon 0.1 --taskDescription "Generate neural embeddings" --deadlineHours 24
@@ -182,48 +209,49 @@ mm monad jobs complete 1 --resultURI ipfs://<deliverable>   # client releases th
 mm monad jobs refund 1                                      # client, after the deadline
 ```
 
-### Agent Skill & AI Assistants
+---
 
-The official agent skill definition (`SKILL.md`) travels directly with the plugin package. After installing the plugin, an agent or user can install or inspect the skill:
+## Use with AI agents
+
+Any agent that can run shell commands can already call `mm monad … --json`. Three packages make that
+easier. All of them rely on the local `mm` CLI, so they must run on the machine where `mm` is installed
+and signed in; none of them holds keys.
+
+| Route | What you get | Install |
+|---|---|---|
+| **Skill** | Rules, flows and an error-code table the agent reads | `mm monad skill --install claude-user` |
+| **Claude Code plugin** | The skill and the MCP server, from this repo's marketplace | `/plugin marketplace add zakyirsyaad/monagent` |
+| **MCP server** | Nine typed tools for any MCP client | `claude mcp add monagent -- npx -y @zakyirsyaad/monagent-mcp` |
+
+### Agent skill
+
+The skill (`SKILL.md`) ships inside the plugin package. After installing the plugin:
 
 ```bash
-# Print skill to stdout
-mm monad skill
-
-# Install directly to Claude Code project
-mm monad skill --install claude-project
-
-# Or install to other supported targets: claude-user, codex-project, codex-user, agents-project, agents-user
-mm monad skill --install codex-project
-
-# Extract clean markdown file directly
-mm monad skill --json | jq -r .data.content > SKILL.md
+mm monad skill                                    # print it (the text is in data.content with --json)
+mm monad skill --install claude-project           # .claude/skills/monad-agent/SKILL.md in this project
+mm monad skill --install claude-user              # ~/.claude/skills/monad-agent/SKILL.md
+mm monad skill --install codex-project            # also: codex-user, agents-project, agents-user
+mm monad skill --json | jq -r .data.content > SKILL.md    # a clean markdown file
 ```
 
-#### Claude Code Marketplace & Plugin
+`--install` refuses to overwrite an existing file (`FILE_EXISTS`) unless you add `--force`.
 
-You can also install MonAgent directly into Claude Code from this repository:
+### Claude Code plugin
 
 ```bash
-# Add this repository as a marketplace
 /plugin marketplace add zakyirsyaad/monagent
-
-# Install the MonAgent plugin
-/plugin install monagent
+/plugin install monagent@monagent-marketplace
 ```
 
-*Note: Initial setup (`mm login` and `mm init`) and transaction approvals (`[AWAITING_MFA]`) are performed manually by a human operator on the machine.*
+It bundles the skill and starts the MCP server below. You still run `mm login`, `mm init` and approve
+writes yourself.
 
-#### Model Context Protocol (MCP) Server
+### MCP server
 
-Any MCP-compliant client (Claude Code, Codex, Cursor, etc.) can interact with MonAgent via the standalone `@zakyirsyaad/monagent-mcp` package:
+`@zakyirsyaad/monagent-mcp` is a stdio server that wraps the `mm` CLI. Add it to Claude Code with the
+command above, or to any client's MCP settings:
 
-```bash
-# Add to Claude Code via MCP CLI
-claude mcp add monagent -- npx -y @zakyirsyaad/monagent-mcp
-```
-
-Or add to your `.mcp.json`:
 ```json
 {
   "mcpServers": {
@@ -234,6 +262,16 @@ Or add to your `.mcp.json`:
   }
 }
 ```
+
+- **Tools:** `monad_pay`, `monad_identity_register`, `monad_identity_get`, `monad_reputation_check`,
+  `monad_reputation_give`, `monad_x402_pay`, `monad_jobs_create`, `monad_jobs_complete`,
+  `monad_jobs_refund`. Reads are annotated read-only; writes are not.
+- **Writes need an explicit `chainId`** (reads default to testnet), so a model can't pick a chain by accident.
+- **No automatic retries on writes.** A timed-out or errored write may still have been sent, so the
+  server returns the error and leaves the decision to the caller.
+- **Errors keep the plugin's codes** (`UNSUPPORTED_CHAIN`, `PAYER_MISMATCH`, …), which are listed in
+  [SKILL.md](./skills/monad-agent/SKILL.md#error-codes).
+- It starts only if it finds `mm` 6.2+ or 7.x with this plugin installed. Set `MM_PATH` if `mm` isn't on `PATH`.
 
 ---
 
@@ -246,6 +284,9 @@ Or add to your `.mcp.json`:
 | `PLUGIN_METADATA_UNAVAILABLE … E404` | Version published minutes ago | Wait a minute and retry |
 | `ESCROW_NOT_DEPLOYED` | `jobs` on mainnet | Use `--chain-id 10143` |
 | `[AWAITING_MFA]` | Write is waiting for approval | Approve in MetaMask, then `mm wallet requests watch <id>` |
+| `Invalid chainId` or a write stuck on `Submitting...` on `--chain-id 10143` | MetaMask's wallet service doesn't support writes on Monad testnet | Stop the command (Ctrl+C), nothing was sent. Use `--chain-id 143` |
+| `FILE_EXISTS` from `mm monad skill --install` | The skill file is already installed | Add `--force` to overwrite it |
+| `[monagent-mcp] Startup verification failed` | `mm` missing, too old, or the plugin isn't installed | Install `mm` 6.2+/7.x and the plugin, or set `MM_PATH` |
 
 ---
 
@@ -255,10 +296,12 @@ Or add to your `.mcp.json`:
 npm install
 npm run typecheck
 npm test --workspace @zakyirsyaad/monagent-plugin   # plugin unit tests (host resolveInputs, x402, ERC-20, chains)
+npm test --workspace @zakyirsyaad/monagent-mcp      # MCP server tests (stub mm, tools, error mapping)
 npx tsx --test contracts/test/*.test.ts            # contract simulation tests
-node --test scripts/repository-contents.test.mjs
+node --test scripts/*.test.mjs                     # repo contents and Claude plugin checks
 cd contracts && forge test                         # Solidity tests
 npm run build --workspace @zakyirsyaad/monagent-plugin
+npm run build --workspace @zakyirsyaad/monagent-mcp
 ```
 
 `npm run demo:local` walks through the main flows against a **mocked** host and prints placeholder
@@ -269,7 +312,10 @@ demonstration, use the `mm` commands above.
 ### Layout
 ```
 packages/plugin-monad/   the mm plugin (commands, per-chain config, executor helpers, tests)
+packages/mcp-monad/      MCP server that wraps the mm CLI
+claude-plugin/           Claude Code plugin (skill + .mcp.json)
+.claude-plugin/          Claude Code marketplace manifest
 contracts/               MonadA2AEscrow + Foundry tests
-skills/monad-agent/      SKILL.md: how an AI agent should use the plugin
-scripts/                 deploy, live-interaction and demo scripts
+skills/monad-agent/      SKILL.md: how an AI agent should use the plugin (source of truth)
+scripts/                 deploy, live-interaction, demo and repo checks
 ```
