@@ -5,6 +5,7 @@
 [![plugin on npm](https://img.shields.io/npm/v/@zakyirsyaad/monagent-plugin?label=plugin)](https://www.npmjs.com/package/@zakyirsyaad/monagent-plugin)
 [![MCP server on npm](https://img.shields.io/npm/v/@zakyirsyaad/monagent-mcp?label=mcp%20server)](https://www.npmjs.com/package/@zakyirsyaad/monagent-mcp)
 ![Monad](https://img.shields.io/badge/Monad-143%20%7C%2010143-6E54FF)
+[![license: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
 MonAgent is a plugin for the **MetaMask Agent Wallet** (`mm` CLI), built for the Monad Metropolis
 Hackathon track *Best Agent Wallet Plugin*. It adds agent-to-agent commerce on **Monad mainnet (`143`)**
@@ -152,3 +153,7 @@ scripts/                 deploy, demo and repo checks
 
 `npm run demo:local` walks through the main flows against a **mocked** host and prints placeholder
 transaction hashes; use the `mm` commands above for a real demonstration.
+
+## License
+
+[MIT](./LICENSE) © 2026 Zaky Irsyad Rais

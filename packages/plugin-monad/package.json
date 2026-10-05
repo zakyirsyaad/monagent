@@ -178,5 +178,6 @@
         "targetChains": "any"
       }
     ]
-  }
+  },
+  "license": "MIT"
 }
