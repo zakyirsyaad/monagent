@@ -286,7 +286,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "monad_jobs_create",
     description:
-      "Create and fund an autonomous subcontracting job escrow in native MON. Only deployed on Monad Testnet (10143). Locks bounty funds until you complete or refund after deadline.",
+      "Create and fund an autonomous subcontracting job escrow in native MON. Only deployed on Monad Testnet (10143). Locks bounty funds until you complete or refund after deadline. Currently blocked: MetaMask's wallet service rejects testnet writes (Invalid chainId), so this write cannot complete today.",
     subcommand: "jobs create",
     isWrite: true,
     annotations: {
@@ -333,7 +333,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "monad_jobs_complete",
     description:
-      "Release escrowed bounty funds to the worker after verifying completed task deliverable. Client only. Only deployed on Monad Testnet (10143).",
+      "Release escrowed bounty funds to the worker after verifying completed task deliverable. Client only. Only deployed on Monad Testnet (10143). Currently blocked: MetaMask's wallet service rejects testnet writes (Invalid chainId), so this write cannot complete today.",
     subcommand: "jobs complete",
     isWrite: true,
     annotations: {
@@ -361,7 +361,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "monad_jobs_refund",
     description:
-      "Refund locked bounty back to employer after task deadline has elapsed without completion. Only deployed on Monad Testnet (10143).",
+      "Refund locked bounty back to employer after task deadline has elapsed without completion. Only deployed on Monad Testnet (10143). Currently blocked: MetaMask's wallet service rejects testnet writes (Invalid chainId), so this write cannot complete today.",
     subcommand: "jobs refund",
     isWrite: true,
     annotations: {
