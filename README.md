@@ -81,12 +81,26 @@ Any agent that can run shell commands can call `mm monad … --json`. Three pack
 | Route | What you get | Install |
 |---|---|---|
 | **Skill** | Rules, flows and an error-code table the agent reads | `mm monad skill --install claude-user` |
-| **Claude Code plugin** | The skill and the MCP server together | `/plugin marketplace add zakyirsyaad/monagent` |
+| **Claude Code plugin** | The skill, four workflow agents with slash commands, and the MCP server | `/plugin marketplace add zakyirsyaad/monagent` |
 | **MCP server** | Nine typed tools for any MCP client | `claude mcp add monagent -- npx -y @zakyirsyaad/monagent-mcp` |
 
 None of them holds keys. They run on the machine where `mm` is installed and signed in, and a person
 still approves writes. Details, tool names and the MCP safety behavior are in
 [REFERENCE.md](./REFERENCE.md#ai-agent-integrations).
+
+The Claude Code plugin also ships four named workflow agents, each with its own skill and slash
+command and the same guardrails (read first, confirm before every write, explicit chain, no blind
+retries, stop on `[AWAITING_MFA]`):
+
+| Workflow | Agent | Slash command | Writes |
+|---|---|---|---|
+| Vet a counterparty | `counterparty-vetter` | `/monad-vet <agentId> [chainId]` | no — read-only |
+| Pay a vetted agent | `agent-payer` | `/monad-pay-agent <agentId> <amount> <token>` | yes — mainnet, after confirmation |
+| Buy a paid API call | `api-buyer` | `/monad-buy-api <url>` | yes — x402, after confirmation |
+| Register my agent | `identity-registrar` | `/monad-register-agent` | yes — mainnet, after confirmation |
+
+There is deliberately no escrow or hiring workflow: escrow writes need testnet, and MetaMask
+currently rejects testnet writes (see [Status and limits](#status-and-limits)).
 
 ## How it works
 

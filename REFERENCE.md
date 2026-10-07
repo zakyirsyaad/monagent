@@ -130,8 +130,27 @@ mm monad skill --json | jq -r .data.content > SKILL.md    # a clean markdown fil
 /plugin install monagent@monagent-marketplace
 ```
 
-It bundles the skill and starts the MCP server below. You still run `mm login`, `mm init` and approve
-writes yourself.
+It bundles the shared skill, starts the MCP server below, and adds four workflow agents — each with
+its own skill and slash command, and the same guardrails in every prompt (read first, confirm before
+every write, explicit `--chain-id`, no blind write retries, stop on `[AWAITING_MFA]`, never touch
+keys):
+
+| Workflow | Agent | Skill | Slash command | Writes |
+|---|---|---|---|---|
+| Vet a counterparty | `counterparty-vetter` | `vet-counterparty` | `/monad-vet <agentId> [chainId]` | no — read-only, both chains |
+| Pay a vetted agent | `agent-payer` | `pay-vetted-agent` | `/monad-pay-agent <agentId> <amount> <token>` | yes — mainnet `143`, after explicit confirmation |
+| Buy a paid API call | `api-buyer` | `buy-x402-api` | `/monad-buy-api <url>` | yes — x402, after confirming cap and payer |
+| Register my agent | `identity-registrar` | `register-agent-identity` | `/monad-register-agent` | yes — mainnet `143`, after explicit confirmation |
+
+There is no escrow or hiring workflow: MetaMask currently rejects testnet writes, so the escrow
+commands can't complete (see Status and limits in the README).
+
+**Skill sources:** the shared `monad-agent` skill is sourced at `skills/monad-agent/SKILL.md` and
+synced into `claude-plugin/skills/` and the npm package by `packages/plugin-monad/scripts/sync-skill.mjs`.
+The four workflow skills are sourced at `claude-plugin/skills/<workflow>/SKILL.md` and ship only in
+the Claude Code plugin, not in the npm package. `scripts/claude-plugin.test.mjs` and
+`scripts/agent-workflows.test.mjs` enforce this layout. You still run `mm login`, `mm init` and
+approve writes yourself.
 
 ### MCP server
 

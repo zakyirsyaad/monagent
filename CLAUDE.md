@@ -23,13 +23,22 @@ packages/
   plugin-monad/     MetaMask Agent Wallet Plugin (@metamask/agent-wallet oclif-plugin)
                     Commands: mm monad:pay, mm monad:identity:*, mm monad:reputation:*, mm monad:jobs:*, mm monad:x402:*, mm monad:skill
   mcp-monad/        Model Context Protocol (MCP) server wrapping mm CLI for AI agent runtimes
-claude-plugin/      Claude Code plugin packaging skills and .mcp.json
+claude-plugin/      Claude Code plugin: shared skill copy, four workflow agents (agents/),
+                    their slash commands (commands/), workflow skills (skills/), and .mcp.json
 .claude-plugin/     Claude Code marketplace manifest (marketplace.json)
 skills/
-  monad-agent/      Official hackathon skill definition (SKILL.md) for AI agents
+  monad-agent/      Source of the shared skill (SKILL.md); sync-skill.mjs copies it into
+                    claude-plugin/skills/ and the npm package. Workflow skills are sourced
+                    in claude-plugin/skills/ only and are NOT copied into the npm package
 scripts/
   demo-monad-plugin.ts  End-to-end demonstration script for demo video & canary verification
 ```
+
+The four plugin workflows (vet counterparty, pay a vetted agent, buy an x402 API call, register an
+identity) each exist as an agent + command + skill under `claude-plugin/`. There is deliberately no
+escrow/hiring workflow: MetaMask currently rejects testnet writes, so `mm monad jobs …` can't
+complete. `scripts/agent-workflows.test.mjs` enforces the layout, frontmatter, manifest
+command/flag references and guardrails; keep it green when touching any of these files.
 
 ---
 
@@ -70,7 +79,7 @@ npm install                                             # install monorepo depen
 npm test --workspace @zakyirsyaad/monagent-plugin       # test MetaMask plugin commands
 npm run typecheck                                       # typecheck full repo
 npx tsx --test contracts/test/*.test.ts                 # contract simulation tests
-node --test scripts/repository-contents.test.mjs        # verify clean repository contents
+node --test scripts/*.test.mjs                          # repo contents, plugin packaging, workflow agents
 cd contracts && forge test                              # run Solidity tests
 npm run build --workspace @zakyirsyaad/monagent-plugin  # emit dist/ and regenerate oclif.manifest.json
 ```

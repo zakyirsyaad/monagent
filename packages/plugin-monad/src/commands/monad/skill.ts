@@ -79,9 +79,11 @@ function resolveTargetLocation(
   const normalizedBase = path.resolve(baseDir);
   const fullPath = path.resolve(normalizedBase, relPath);
 
-  // Path safety: protect against directory traversal
+  // Path safety: relPath only ever comes from the fixed target whitelist above (no user-supplied
+  // segments), and the resolved target is validated to stay inside the whitelisted base directory
+  // (target === root or target.startsWith(root + path.sep)) before any filesystem access.
   const expectedPrefix = normalizedBase + path.sep;
-  if (!fullPath.startsWith(expectedPrefix)) {
+  if (fullPath !== normalizedBase && !fullPath.startsWith(expectedPrefix)) {
     throw new CommandError(
       "INVALID_INPUT",
       `Target path "${fullPath}" escapes root directory "${normalizedBase}".`,
