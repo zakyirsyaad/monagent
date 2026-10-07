@@ -32,15 +32,21 @@ The wallet needs MON for gas: testnet from `https://faucet.monad.xyz`, real MON 
 ## Rules for agents
 
 1. **Pick the chain explicitly.** Every command takes `--chain-id 10143|143` and defaults to testnet
-   `10143`. Pass `--chain-id 143` only when you intend to move real funds.
-2. **Use `--json`** and parse the result. On success you get `{"ok": true, "data": {…}}`; on failure an
+   `10143`. Pass `--chain-id 143` only when you intend to move real funds. Writes currently only go
+   through on `143` (see [Escrow](#escrow-testnet-10143-only--writes-currently-rejected)).
+2. **Confirm before every write.** Before `pay`, `identity register`, `reputation give`, `x402 pay` or
+   any `jobs` command, state the chain, recipient, amount and token, and wait for an explicit yes from
+   the user. Be extra explicit for `--chain-id 143`: it moves real funds.
+3. **Use `--json`** and parse the result. On success you get `{"ok": true, "data": {…}}`; on failure an
    error code (see [Error codes](#error-codes)).
-3. **Writes can pause for approval.** If you see `[AWAITING_MFA]` (text) or a `_notice` with
+4. **Writes can pause for approval.** If you see `[AWAITING_MFA]` (text) or a `_notice` with
    `kind: "AWAITING_MFA"` (`--json`), stop and tell the user to approve in MetaMask. Do not resubmit the
    same transaction; follow it with `mm wallet requests watch <id>`.
-4. **Check before you pay strangers.** Run `mm monad reputation check <agentId>` before paying or hiring
+5. **Never retry a failed or timed-out write.** Check the explorer or `mm wallet requests list` first;
+   a retry can double-send.
+6. **Check before you pay strangers.** Run `mm monad reputation check <agentId>` before paying or hiring
    an unknown agent, and prefer `HIGH`/`MEDIUM` counterparties for meaningful amounts.
-5. **Rate others, not yourself.** The registry rejects feedback on agents you own.
+7. **Rate others, not yourself.** The registry rejects feedback on agents you own.
 
 ## Commands
 
@@ -84,7 +90,7 @@ mm monad x402 pay --url https://api.example.com/tool --method POST --body '{"q":
 - Only an `exact` requirement on the chosen chain is accepted, and only that one is signed.
 - Returns the API's `statusCode` and `response`, `paymentSettled`, and the `paymentDetails` you paid.
 
-### Escrow (testnet `10143` only)
+### Escrow (testnet `10143` only — writes currently rejected)
 ```bash
 mm monad jobs create --workerAddress <address> --bountyMon 0.1 \
   --taskDescription "<task>" --deadlineHours 24 --json      # returns on-chain jobId
@@ -93,12 +99,32 @@ mm monad jobs refund <jobId> --json                         # client, only after
 ```
 Only the client (the wallet that created the job) can complete or refund it.
 
-## Typical hiring flow
+**Current limit:** the escrow is deployed only on testnet `10143`, and MetaMask's wallet service
+currently rejects writes on Monad testnet with `Invalid chainId` — the command waits on
+`Submitting...` and nothing is sent. So `mm monad jobs …` cannot complete a write today; escrow-based
+hiring is blocked until MetaMask supports testnet writes or the escrow is deployed to mainnet. If a
+write on `10143` hangs or returns `Invalid chainId`: **stop — nothing was sent.** Tell the user, and
+don't retry or switch chains without asking. Read-only commands (`identity get`, `reputation check`)
+still work on both chains. Say plainly that escrow can't be used instead of trying it.
 
-1. `mm monad reputation check <workerAgentId> --json`: stop if `LOW`, or ask the user if `UNRATED`.
-2. `mm monad jobs create --workerAddress <worker wallet> --bountyMon <amount> --taskDescription "…" --json`, then record `jobId`.
-3. When the work is delivered and verified: `mm monad jobs complete <jobId> --resultURI <proof> --json`.
-4. `mm monad reputation give --agentId <workerAgentId> --value <score> --tag1 <skill> --json`.
+## Typical flow: vet, pay, rate (works today)
+
+Escrow-based hiring is blocked (see above), so the flow that works today is a direct payment on
+mainnet `143`, with ERC-8004 reputation as the trust layer:
+
+1. **Vet** — `mm monad reputation check <agentId> --chain-id 143 --json`, then apply the decision rule:
+   - `HIGH` → go on.
+   - `MEDIUM` → tell the user the score, and continue only if they agree.
+   - `LOW` → stop; recommend against paying this agent.
+   - `UNRATED` → ask the user how to proceed (no feedback yet is not proof of bad behavior).
+   Optionally also run `mm monad identity get <agentId> --chain-id 143 --json` to see who owns the
+   agent and what it claims to do.
+2. **Confirm** — state the chain, recipient, amount and token, and wait for an explicit yes.
+3. **Pay** — `mm monad pay --to <agent wallet> --amount <amount> --token <MON|USDC|erc20> --chain-id 143 --json`,
+   then report the `transactionHash` and the explorer link `https://monadexplorer.com/tx/<hash>`.
+4. **Rate** — once the work is delivered, offer
+   `mm monad reputation give --agentId <agentId> --value <score> --tag1 <skill> --chain-id 143 --json`
+   and remind the user they can't rate their own agent.
 
 ## Error codes
 
@@ -107,6 +133,7 @@ Only the client (the wallet that created the job) can complete or refund it.
 | `INVALID_INPUT` | A flag is missing or malformed (address, amount, id) | Fix the input; don't retry unchanged |
 | `INVALID_AMOUNT` | Amount is zero or negative | Use a positive amount |
 | `UNSUPPORTED_CHAIN` | `--chain-id` is not 10143 or 143 | Use 10143 or 143 |
+| `Invalid chainId` / stuck on `Submitting...` | A write was attempted on testnet `10143`, which MetaMask currently rejects — nothing was sent | Stop; tell the user; use `--chain-id 143` for writes or ask the user. Don't retry |
 | `UNSUPPORTED_TOKEN` | `--token` isn't MON, USDC or an address | Use one of those |
 | `INVALID_TOKEN_CONTRACT` | No contract or no `decimals()` at the token address | Check the token address and chain |
 | `ESCROW_NOT_DEPLOYED` | Escrow used on a chain without the contract | Use `--chain-id 10143` |
