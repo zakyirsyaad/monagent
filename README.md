@@ -39,7 +39,7 @@ mm monad identity get 1 --chain-id 143        # read an agent's on-chain identit
 | Decide whether to trust a counterparty | `mm monad reputation check` | ERC-8004 Reputation Registry |
 | Leave feedback after a job | `mm monad reputation give` | ERC-8004 Reputation Registry |
 | Pay per call for a paid API | `mm monad x402 pay` | x402, EIP-3009 USDC |
-| Hire an agent with funds in escrow | `mm monad jobs create` / `complete` / `refund` | `MonadA2AEscrow` (this repo) |
+| Hire an agent with funds in escrow (currently blocked — see [Status and limits](#status-and-limits)) | `mm monad jobs create` / `complete` / `refund` | `MonadA2AEscrow` (this repo) |
 
 ## Quickstart
 
@@ -158,10 +158,11 @@ node --test scripts/*.test.mjs
 ```
 packages/plugin-monad/   the mm plugin
 packages/mcp-monad/      MCP server that wraps the mm CLI
-claude-plugin/           Claude Code plugin (skill + .mcp.json)
+claude-plugin/           Claude Code plugin (workflow agents, slash commands, workflow skills, .mcp.json)
 .claude-plugin/          Claude Code marketplace manifest
 contracts/               MonadA2AEscrow + Foundry tests
-skills/monad-agent/      SKILL.md, the source of truth for the agent skill
+skills/monad-agent/      shared agent skill (SKILL.md), synced into claude-plugin/ and the npm package;
+                         the four workflow skills are sourced in claude-plugin/skills/ only
 scripts/                 deploy, demo and repo checks
 ```
 
