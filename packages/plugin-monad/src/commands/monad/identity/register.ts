@@ -122,7 +122,7 @@ export class MonadIdentityRegisterCommand extends BaseMonadPluginCommand<Registe
       args: [agentUri],
     });
 
-    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
+    const { hash } = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: chain.chainId,
       to: chain.identityRegistry,
       data,

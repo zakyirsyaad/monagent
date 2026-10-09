@@ -44,4 +44,19 @@ describe("repository contents", () => {
       `Found legacy files in git index:\n${legacyFiles.join("\n")}`,
     );
   });
+
+  it("Issue #18: guards demo script against raw private key signing bypass", () => {
+    const content = spawnSync("cat", ["scripts/demo-monad-plugin.ts"], { encoding: "utf8" }).stdout;
+
+    assert.equal(
+      content.includes("privateKeyToAccount"),
+      false,
+      "scripts/demo-monad-plugin.ts must not contain privateKeyToAccount (bypasses MetaMask Agent Wallet)"
+    );
+    assert.equal(
+      content.includes("sendTransaction"),
+      false,
+      "scripts/demo-monad-plugin.ts must not contain direct walletClient.sendTransaction broadcast"
+    );
+  });
 });

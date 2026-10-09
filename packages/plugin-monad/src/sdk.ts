@@ -135,6 +135,11 @@ export interface EvmExecutorResult {
   };
 }
 
+export interface ExecutedTransactionResult {
+  hash: `0x${string}`;
+  status: "CONFIRMED" | "SUBMITTED" | string;
+}
+
 /**
  * Helper function to execute transactions through MetaMask EvmWalletExecutor
  */
@@ -148,7 +153,7 @@ export async function executeTransaction(
     value?: bigint;
     data?: `0x${string}`;
   }
-): Promise<`0x${string}`> {
+): Promise<ExecutedTransactionResult> {
   const executor = await ctx.walletExecutor(io, source);
   const res = (await (executor as any)(
     {
@@ -171,7 +176,10 @@ export async function executeTransaction(
     );
   }
 
-  return res.hash;
+  return {
+    hash: res.hash,
+    status: res.status,
+  };
 }
 
 /**

@@ -118,7 +118,7 @@ export class MonadReputationGiveCommand extends BaseMonadPluginCommand<GiveReput
       ],
     });
 
-    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
+    const { hash } = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: chain.chainId,
       to: chain.reputationRegistry,
       data,

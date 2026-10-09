@@ -19,6 +19,8 @@ export interface CompleteJobResult {
   resultURI: string;
   transactionHash: `0x${string}`;
   chainId: number;
+  confirmed: boolean;
+  status: "CONFIRMED" | "SUBMITTED";
 }
 
 export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJobResult> {
@@ -82,11 +84,57 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       args: [BigInt(jobId), resultURI],
     });
 
-    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
+    const { hash } = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: chain.chainId,
       to: chain.escrow,
       data,
     });
+
+    io.emit(`Escrow release transaction submitted for Job #${jobId} on ${chain.name}, pending confirmation... TxHash: ${hash}`);
+
+    const client = this.getPublicClient(chain.chainId);
+    let receipt: any = null;
+    let timedOut = false;
+
+    try {
+      receipt = await client.waitForTransactionReceipt({
+        hash,
+        timeout: 15_000,
+      });
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      if (
+        err?.name === "WaitForTransactionReceiptTimeoutError" ||
+        errMsg.toLowerCase().includes("timed out") ||
+        errMsg.toLowerCase().includes("timeout")
+      ) {
+        timedOut = true;
+      } else {
+        throw err;
+      }
+    }
+
+    if (timedOut || !receipt) {
+      io.emit(`Escrow release transaction submitted for Job #${jobId} on ${chain.name}, but confirmation timed out. Status: SUBMITTED (unconfirmed). TxHash: ${hash}`);
+      io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
+
+      return {
+        jobId,
+        resultURI,
+        transactionHash: hash,
+        chainId: chain.chainId,
+        confirmed: false,
+        status: "SUBMITTED",
+      };
+    }
+
+    if (receipt.status === "reverted") {
+      throw new CommandError(
+        "TRANSACTION_REVERTED",
+        `Job #${jobId} escrow release reverted on-chain: ${hash}. Explorer: ${chain.explorerUrl}/tx/${hash}`,
+        "Check transaction on Monad Explorer and verify job status and caller authorization."
+      );
+    }
 
     io.emit(`Job #${jobId} escrow released and settled on ${chain.name}! TxHash: ${hash}`);
     io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
@@ -96,6 +144,8 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       resultURI,
       transactionHash: hash,
       chainId: chain.chainId,
+      confirmed: true,
+      status: "CONFIRMED",
     };
   }
 }

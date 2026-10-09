@@ -20,6 +20,8 @@ export interface MonadPaymentResult {
   token: string;
   memo?: string;
   chainId: number;
+  confirmed: boolean;
+  status: "CONFIRMED" | "SUBMITTED";
 }
 
 export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> {
@@ -160,12 +162,60 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
       );
     }
 
-    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
+    const { hash } = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: chain.chainId,
       to: targetAddress,
       value: txValue,
       data: txData,
     });
+
+    io.emit(`Payment transaction submitted on ${chain.name}, pending confirmation... TxHash: ${hash}`);
+
+    const client = this.getPublicClient(chain.chainId);
+    let receipt: any = null;
+    let timedOut = false;
+
+    try {
+      receipt = await client.waitForTransactionReceipt({
+        hash,
+        timeout: 15_000,
+      });
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      if (
+        err?.name === "WaitForTransactionReceiptTimeoutError" ||
+        errMsg.toLowerCase().includes("timed out") ||
+        errMsg.toLowerCase().includes("timeout")
+      ) {
+        timedOut = true;
+      } else {
+        throw err;
+      }
+    }
+
+    if (timedOut || !receipt) {
+      io.emit(`Payment transaction submitted on ${chain.name}, but confirmation timed out. Status: SUBMITTED (unconfirmed). TxHash: ${hash}`);
+      io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
+
+      return {
+        transactionHash: hash,
+        to,
+        amount,
+        token,
+        memo,
+        chainId: chain.chainId,
+        confirmed: false,
+        status: "SUBMITTED",
+      };
+    }
+
+    if (receipt.status === "reverted") {
+      throw new CommandError(
+        "TRANSACTION_REVERTED",
+        `Payment transaction reverted on-chain: ${hash}. Explorer: ${chain.explorerUrl}/tx/${hash}`,
+        "Check transaction on Monad Explorer and verify token balances or transfer permissions."
+      );
+    }
 
     io.emit(`Paid ${amount} ${tokenUpper === "MON" ? "MON" : token} to ${to} on ${chain.name}. TxHash: ${hash}`);
     io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
@@ -177,6 +227,8 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
       token,
       memo,
       chainId: chain.chainId,
+      confirmed: true,
+      status: "CONFIRMED",
     };
   }
 }
