@@ -3,8 +3,6 @@ import dns from "node:dns";
 import { Agent, fetch as undiciFetch } from "undici";
 import { CommandError } from "./sdk.js";
 
-const defaultNativeFetch = globalThis.fetch;
-
 /**
  * Cloud platform metadata and host agent IPs that are public or non-RFC1918.
  * Explicitly denied to prevent host-level metadata extraction.
@@ -275,48 +273,55 @@ export async function safeFetch(
     const pinnedIp = addresses[0];
     const family = net.isIP(pinnedIp) === 6 ? 6 : 4;
 
-    const dispatcher = new Agent({
-      connect: {
-        lookup: (_hostname: string, opts: any, cb: (err: Error | null, addressOrAddresses: any, family?: number) => void) => {
-          if (opts?.all) {
-            cb(null, [{ address: pinnedIp, family }]);
-          } else {
-            cb(null, pinnedIp, family);
-          }
-        },
-      },
-    });
-
-    const isGlobalStubbed = globalThis.fetch !== defaultNativeFetch;
-    const customFetch = init?.fetchFn || (isGlobalStubbed ? globalThis.fetch : null);
-
     let res: Response;
 
-    try {
-      if (customFetch) {
-        const fetchInit: any = {
-          ...init,
-          redirect: "manual",
-          dispatcher,
-        };
-        res = await customFetch(validated.href, fetchInit);
-      } else {
+    if (init?.fetchFn) {
+      // Caller-supplied transport override (used for test stubbing)
+      const fetchInit: any = {
+        ...init,
+        redirect: "manual",
+      };
+      try {
+        res = await init.fetchFn(validated.href, fetchInit);
+      } catch (err: any) {
+        if (err instanceof CommandError) throw err;
+        throw new CommandError(
+          "FETCH_FAILED",
+          `Failed to reach target URL: ${err?.message || String(err)}`,
+          "Verify endpoint URL and network connectivity."
+        );
+      }
+    } else {
+      // Production path: mitigate DNS rebinding by pinning socket address via undici Agent
+      const dispatcher = new Agent({
+        connect: {
+          lookup: (_hostname: string, opts: any, cb: (err: Error | null, addressOrAddresses: any, family?: number) => void) => {
+            if (opts?.all) {
+              cb(null, [{ address: pinnedIp, family }]);
+            } else {
+              cb(null, pinnedIp, family);
+            }
+          },
+        },
+      });
+
+      try {
         const fetchInit: any = {
           ...init,
           redirect: "manual",
           dispatcher,
         };
         res = (await undiciFetch(validated.href, fetchInit)) as unknown as Response;
+      } catch (err: any) {
+        if (err instanceof CommandError) throw err;
+        throw new CommandError(
+          "FETCH_FAILED",
+          `Failed to reach target URL: ${err?.message || String(err)}`,
+          "Verify endpoint URL and network connectivity."
+        );
+      } finally {
+        await dispatcher.close();
       }
-    } catch (err: any) {
-      if (err instanceof CommandError) throw err;
-      throw new CommandError(
-        "FETCH_FAILED",
-        `Failed to reach target URL: ${err?.message || String(err)}`,
-        "Verify endpoint URL and network connectivity."
-      );
-    } finally {
-      await dispatcher.close();
     }
 
     if (res.status >= 300 && res.status < 400) {

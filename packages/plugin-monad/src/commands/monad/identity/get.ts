@@ -101,11 +101,12 @@ export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityR
     }
 
     const lookupFn = (this.ctx as any)?.dnsLookup;
+    const fetchFn = (this.ctx as any)?.fetchFn;
     const { card, cardUri, cardParseError } = await resolveAgentCard(
       tokenUri,
       walletAddress,
       agentId,
-      { lookup: lookupFn }
+      { lookup: lookupFn, fetchFn }
     );
 
     let statusLine = `Agent #${agentId}: Owner: ${owner}, Wallet: ${walletAddress}`;

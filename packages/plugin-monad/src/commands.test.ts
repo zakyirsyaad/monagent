@@ -147,6 +147,7 @@ function createMockContext(overrides?: {
       if (host === "evil-private-target.com") return ["10.0.0.1"];
       return ["104.18.2.3"];
     },
+    fetchFn: (url: string, init?: any) => globalThis.fetch(url, init),
     walletExecutor: async () => async (req: any) => {
       overrides?.onExecute?.(req);
       return executorResult;
@@ -1600,7 +1601,6 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
->>>>>>> d92988a (fix(x402): harden pay command against SSRF and bind signed authorizations)
   });
 
   it("Issue #21: identity:get parses percent-encoded data URI", async () => {

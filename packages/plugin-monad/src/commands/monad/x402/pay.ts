@@ -102,6 +102,7 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
     io.emit(`Executing request to paid API: ${url}...`);
 
     const lookupFn = (this.ctx as any)?.dnsLookup;
+    const fetchFn = (this.ctx as any)?.fetchFn;
 
     const initialRes = await safeFetch(url, {
       method,
@@ -111,6 +112,7 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       },
       body: method === "POST" && body ? body : undefined,
       lookup: lookupFn,
+      fetchFn,
     });
 
     if (initialRes.status !== 402) {
@@ -360,6 +362,7 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       },
       body: method === "POST" && body ? body : undefined,
       lookup: lookupFn,
+      fetchFn,
     });
 
     const rawResponseText = await paidRes.text();

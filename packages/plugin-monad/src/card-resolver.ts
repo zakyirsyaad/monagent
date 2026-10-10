@@ -5,6 +5,7 @@ export interface ResolveAgentCardOptions {
   lookup?: (hostname: string) => Promise<string[]>;
   ipfsGateway?: string;
   timeoutMs?: number;
+  fetchFn?: (url: string, init?: any) => Promise<Response>;
 }
 
 export interface ResolveAgentCardResult {
@@ -98,6 +99,7 @@ export async function resolveAgentCard(
           },
           signal: controller.signal,
           lookup: options?.lookup,
+          fetchFn: options?.fetchFn,
         });
 
         if (!res.ok) {
