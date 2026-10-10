@@ -139,6 +139,10 @@ function createMockContext(overrides?: {
 
   return {
     publicClient: () => mockPublicClient,
+    dnsLookup: async (host: string) => {
+      if (host === "evil-private-target.com") return ["10.0.0.1"];
+      return ["104.18.2.3"];
+    },
     walletExecutor: async () => async (req: any) => {
       overrides?.onExecute?.(req);
       return executorResult;
@@ -578,7 +582,10 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       assert.ok(init?.headers?.["PAYMENT-SIGNATURE"] || init?.headers?.["payment-signature"]);
       return new Response(JSON.stringify({ result: "premium weather prediction data" }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "PAYMENT-RESPONSE": "settled",
+        },
       });
     };
 
@@ -782,7 +789,10 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       assert.ok(init?.headers?.["PAYMENT-SIGNATURE"] || init?.headers?.["payment-signature"]);
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "PAYMENT-RESPONSE": "settled",
+        },
       });
     };
 
@@ -1108,6 +1118,300 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     const res = await cmd.execute(io);
     assert.equal(res.confirmed, false);
     assert.equal(res.status, "SUBMITTED");
+  });
+
+  it("Issue #19: monad:x402:pay rejects non-HTTPS and SSRF targets before fetching", async () => {
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    let fetchCalled = false;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response("ok", { status: 200 });
+    };
+
+    try {
+      const targets = [
+        "http://169.254.169.254/latest/meta-data/",
+        "http://localhost:8080/api",
+        "file:///etc/passwd",
+        "https://127.0.0.1/api",
+        "https://169.254.169.254/secret",
+      ];
+
+      for (const target of targets) {
+        fetchCalled = false;
+        const io = createMockIO({
+          url: target,
+          payer: "0x1111111111111111111111111111111111111111",
+        });
+
+        await assert.rejects(
+          cmd.execute(io),
+          (err: any) => err instanceof CommandError && err.code === "INVALID_INPUT",
+          `Expected ${target} to fail with INVALID_INPUT`
+        );
+        assert.equal(fetchCalled, false, `fetch should not have been called for ${target}`);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #19: monad:x402:pay rejects non-numeric maxSpend with INVALID_INPUT", async () => {
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      url: "https://api.example.com/paid",
+      payer: "0x1111111111111111111111111111111111111111",
+      maxSpend: "1USDC",
+    });
+
+    await assert.rejects(
+      cmd.execute(io),
+      (err: any) =>
+        err instanceof CommandError &&
+        err.code === "INVALID_INPUT" &&
+        err.message.includes("maxSpend must be integer base units")
+    );
+  });
+
+  it("Issue #19: monad:x402:pay aborts with MAX_SPEND_EXCEEDED when requirement amount exceeds maxSpend", async () => {
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      return new Response(
+        JSON.stringify({
+          x402Version: 2,
+          accepts: [
+            {
+              scheme: "exact",
+              network: "eip155:10143",
+              asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              amount: "5000000", // 5 USDC
+              payTo: "0x8888888888888888888888888888888888888888",
+            },
+          ],
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    };
+
+    try {
+      const io = createMockIO({
+        url: "https://api.example.com/expensive",
+        payer: "0x1111111111111111111111111111111111111111",
+        maxSpend: "1000000", // 1 USDC cap
+      });
+
+      await assert.rejects(
+        cmd.execute(io),
+        (err: any) =>
+          err instanceof CommandError &&
+          err.code === "MAX_SPEND_EXCEEDED" &&
+          err.message.includes("exceeds maximum configured spend limit")
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #19: monad:x402:pay rejects requirement offering non-USDC asset with UNSUPPORTED_TOKEN", async () => {
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      return new Response(
+        JSON.stringify({
+          x402Version: 2,
+          accepts: [
+            {
+              scheme: "exact",
+              network: "eip155:10143",
+              asset: "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", // Non-USDC token!
+              amount: "1000",
+              payTo: "0x8888888888888888888888888888888888888888",
+            },
+          ],
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    };
+
+    try {
+      const io = createMockIO({
+        url: "https://api.example.com/malicious-asset",
+        payer: "0x1111111111111111111111111111111111111111",
+      });
+
+      await assert.rejects(
+        cmd.execute(io),
+        (err: any) =>
+          err instanceof CommandError &&
+          err.code === "UNSUPPORTED_TOKEN" &&
+          err.message.includes("does not match canonical USDC")
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #19: monad:x402:pay rejects requirement with invalid payTo address with INVALID_INPUT", async () => {
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      return new Response(
+        JSON.stringify({
+          x402Version: 2,
+          accepts: [
+            {
+              scheme: "exact",
+              network: "eip155:10143",
+              asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              amount: "1000",
+              payTo: "invalid-not-an-address",
+            },
+          ],
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    };
+
+    try {
+      const io = createMockIO({
+        url: "https://api.example.com/invalid-payto",
+        payer: "0x1111111111111111111111111111111111111111",
+      });
+
+      await assert.rejects(
+        cmd.execute(io),
+        (err: any) =>
+          err instanceof CommandError &&
+          err.code === "INVALID_INPUT" &&
+          err.message.includes("Invalid payTo address")
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #19: monad:x402:pay aborts with SIGNATURE_VERIFICATION_FAILED when signer fails to produce signature", async () => {
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+
+    (ctx as any).walletExecutor = async () => async () => {
+      // Return without signature
+      return { status: "FAILED" };
+    };
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      return new Response(
+        JSON.stringify({
+          x402Version: 2,
+          accepts: [
+            {
+              scheme: "exact",
+              network: "eip155:10143",
+              asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              amount: "1000",
+              payTo: "0x8888888888888888888888888888888888888888",
+            },
+          ],
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    };
+
+    try {
+      const io = createMockIO({
+        url: "https://api.example.com/no-signature",
+        payer: "0x1111111111111111111111111111111111111111",
+      });
+
+      await assert.rejects(
+        cmd.execute(io),
+        (err: any) =>
+          err instanceof CommandError &&
+          (err.code === "SIGNATURE_VERIFICATION_FAILED" || err.code === "PAYMENT_PAYLOAD_FAILED")
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #19: monad:x402:pay derives paymentSettled as false when 200 response lacks PAYMENT-RESPONSE header", async () => {
+    const { privateKeyToAccount } = await import("viem/accounts");
+    const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const testPayer = account.address;
+
+    const cmd = new MonadX402PayCommand();
+    const ctx = createMockContext();
+
+    (ctx as any).walletExecutor = async () => async (req: any) => {
+      if (req.kind === "typed-data") {
+        const sig = await account.signTypedData(req.typedData);
+        return { status: "CONFIRMED", signature: sig };
+      }
+      return { status: "CONFIRMED" };
+    };
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+    globalThis.fetch = async () => {
+      callCount++;
+      if (callCount === 1) {
+        return new Response(
+          JSON.stringify({
+            x402Version: 2,
+            accepts: [
+              {
+                scheme: "exact",
+                network: "eip155:10143",
+                asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+                amount: "1000",
+                payTo: "0x8888888888888888888888888888888888888888",
+              },
+            ],
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      // 200 OK without PAYMENT-RESPONSE header
+      return new Response(JSON.stringify({ result: "done" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    try {
+      const io = createMockIO({
+        url: "https://api.example.com/unconfirmed-settlement",
+        payer: testPayer,
+      });
+
+      const res = await cmd.execute(io);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.httpOk, true);
+      assert.equal(res.paymentSettled, false, "paymentSettled must be false when PAYMENT-RESPONSE header is absent");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+>>>>>>> d92988a (fix(x402): harden pay command against SSRF and bind signed authorizations)
   });
 });
 
