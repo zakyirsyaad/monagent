@@ -6,7 +6,13 @@ import {
   InputFieldType,
   type InputSchema,
 } from "@metamask/agent-wallet/plugin";
-import { createPublicClient, http, HttpRequestError, type PublicClient } from "viem";
+import {
+  createPublicClient,
+  http,
+  HttpRequestError,
+  type PublicClient,
+  type TransactionReceipt,
+} from "viem";
 import { resolveChain, MONAD_TESTNET_CHAIN_ID } from "./monad.js";
 
 export abstract class BaseMonadPluginCommand<TFinal = void> extends PluginCommand<TFinal> {
@@ -135,6 +141,75 @@ export interface EvmExecutorResult {
   };
 }
 
+export interface ExecutedTransactionResult {
+  hash: `0x${string}`;
+  status: "CONFIRMED" | "SUBMITTED" | string;
+}
+
+export const RECEIPT_CONFIRMATION_TIMEOUT_MS = 15_000;
+
+export interface ReceiptConfirmationResult {
+  confirmed: boolean;
+  status: "CONFIRMED" | "SUBMITTED";
+  receipt?: TransactionReceipt;
+}
+
+/**
+ * Waits for transaction receipt with a bounded timeout.
+ * - If receipt status is "reverted", throws TRANSACTION_REVERTED with explorer URL and message.
+ * - If receipt status is "success", returns { confirmed: true, status: "CONFIRMED", receipt }.
+ * - If receipt times out, returns { confirmed: false, status: "SUBMITTED" }.
+ */
+export async function awaitReceiptConfirmation(
+  client: PublicClient,
+  hash: `0x${string}`,
+  chain: { name: string; explorerUrl: string },
+  operationLabel: string,
+  timeoutMs: number = RECEIPT_CONFIRMATION_TIMEOUT_MS
+): Promise<ReceiptConfirmationResult> {
+  let receipt: TransactionReceipt | null = null;
+  let timedOut = false;
+
+  try {
+    receipt = await client.waitForTransactionReceipt({
+      hash,
+      timeout: timeoutMs,
+    });
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
+    if (
+      err?.name === "WaitForTransactionReceiptTimeoutError" ||
+      errMsg.toLowerCase().includes("timed out") ||
+      errMsg.toLowerCase().includes("timeout")
+    ) {
+      timedOut = true;
+    } else {
+      throw err;
+    }
+  }
+
+  if (timedOut || !receipt) {
+    return {
+      confirmed: false,
+      status: "SUBMITTED",
+    };
+  }
+
+  if (receipt.status === "reverted") {
+    throw new CommandError(
+      "TRANSACTION_REVERTED",
+      `${operationLabel} reverted on-chain: ${hash}. Explorer: ${chain.explorerUrl}/tx/${hash}`,
+      "Check transaction on Monad Explorer and verify preconditions or authorization."
+    );
+  }
+
+  return {
+    confirmed: true,
+    status: "CONFIRMED",
+    receipt,
+  };
+}
+
 /**
  * Helper function to execute transactions through MetaMask EvmWalletExecutor
  */
@@ -148,7 +223,7 @@ export async function executeTransaction(
     value?: bigint;
     data?: `0x${string}`;
   }
-): Promise<`0x${string}`> {
+): Promise<ExecutedTransactionResult> {
   const executor = await ctx.walletExecutor(io, source);
   const res = (await (executor as any)(
     {
@@ -171,7 +246,10 @@ export async function executeTransaction(
     );
   }
 
-  return res.hash;
+  return {
+    hash: res.hash,
+    status: res.status,
+  };
 }
 
 /**

@@ -1,24 +1,28 @@
 /**
- * Demo Script: MetaMask Agent Wallet Plugin for Monad (@monagent/plugin-monad)
+ * Demo Script: MetaMask Agent Wallet Plugin for Monad (@zakyirsyaad/monagent-plugin)
  *
- * Demonstrates the 6 essential A2A flows for the Metropolis Hackathon:
+ * Walks through the main flows against a MOCKED host context and prints placeholder
+ * transaction hashes (matching README.md specification).
+ *
+ * Demonstrates:
  * 1. Register Agent Identity on Monad (ERC-8004)
  * 2. Lookup Agent Identity & Card
  * 3. Inspect Peer Reputation & Trust Tier
- * 4. Execute Native MON Payment with LIVE on-chain settlement!
- * 5. Create & Fund A2A Subcontracted Task Escrow
+ * 4. Execute Native MON Payment (Simulated host execution)
+ * 5. A2A Subcontracted Task Escrow (Status: Skipped - blocked on testnet writes)
  * 6. Submit Immutable On-Chain Feedback (ERC-8004)
  *
- * Run: npx tsx scripts/demo-monad-plugin.ts
+ * All operations run through simulated agent wallet context. No raw private keys,
+ * secret handling, or wallet bypasses are used.
+ *
+ * Run: npm run demo:local
  */
 
 import {
   createPublicClient,
-  createWalletClient,
   http,
   type PublicClient,
 } from "viem";
-import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 
 import {
   MonadIdentityRegisterCommand,
@@ -26,19 +30,30 @@ import {
   MonadReputationCheckCommand,
   MonadReputationGiveCommand,
   MonadPayCommand,
-  MonadJobsCreateCommand,
   type CommandIO,
   type PluginCommandContext,
 } from "../packages/plugin-monad/src/index.js";
-import { MONAD_NETWORK } from "../packages/plugin-monad/src/monad.ts";
+import { MONAD_NETWORK } from "../packages/plugin-monad/src/monad.js";
 
 function createConsoleIO(inputs: unknown): CommandIO {
   return {
     resolveInputs: async <T>() => inputs as unknown as T,
-    log: (msg: string) => console.log(`  [INFO] ${msg}`),
+    emit: (msg: string) => {
+      // Omit live explorer links for simulated mock hashes
+      if (msg.startsWith("Explorer: ")) {
+        return;
+      }
+      console.log(`  [OUTPUT] ${msg}`);
+    },
+    yield: () => {},
+    notify: () => {},
+    progress: () => {},
+    log: (_level: any, msg: string) => console.log(`  [INFO] ${msg}`),
     error: (msg: string) => console.error(`  [ERROR] ${msg}`),
     warn: (msg: string) => console.warn(`  [WARN] ${msg}`),
-  };
+    flags: inputs as any,
+    isInteractive: false,
+  } as unknown as CommandIO;
 }
 
 const monadChain = {
@@ -54,19 +69,11 @@ const monadChain = {
   },
 } as const;
 
-function createDemoContext(liveAccount?: PrivateKeyAccount): PluginCommandContext {
+function createDemoContext(): PluginCommandContext {
   const livePublicClient = createPublicClient({
     chain: monadChain,
     transport: http(),
   });
-
-  const walletClient = liveAccount
-    ? createWalletClient({
-        account: liveAccount,
-        chain: monadChain,
-        transport: http(),
-      })
-    : null;
 
   const mockPublicClient = {
     ...livePublicClient,
@@ -99,33 +106,28 @@ function createDemoContext(liveAccount?: PrivateKeyAccount): PluginCommandContex
       }
       return null;
     },
+    waitForTransactionReceipt: async () => ({
+      status: "success",
+      logs: [
+        {
+          address: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          topics: [
+            // Registered(uint256,string,address)
+            "0xca52e62c367d81bb2e328eb795f7c7ba24afb478408a26c0e201d155c449bc4a",
+            "0x000000000000000000000000000000000000000000000000000000000000002a", // 42 in hex
+            "0x0000000000000000000000001234567890123456789012345678901234567890",
+          ],
+          data: "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020646174613a6170706c69636174696f6e2f6a736f6e3b6261736536342c616263",
+        },
+      ],
+    }),
   } as unknown as PublicClient;
 
   return {
     publicClient: () => mockPublicClient,
-    walletExecutor: async (_io: CommandIO, commandId: string) => async (req: any) => {
-      console.log(`  [MetaMask Policy Engine] Evaluated & Approved request for ${commandId}`);
-
-      // If live wallet configured and request is a native payment transaction, broadcast live!
-      const tx = req.transaction || req;
-      if (walletClient && req.kind === "transaction" && (!tx.data || tx.data === "0x")) {
-        try {
-          const liveHash = await walletClient.sendTransaction({
-            to: tx.to as `0x${string}`,
-            value: tx.value,
-          });
-          console.log(`  ⚡ LIVE ON-CHAIN BROADCAST: Confirmed on Monad Testnet!`);
-          return {
-            status: "CONFIRMED",
-            hash: liveHash,
-          };
-        } catch (e: unknown) {
-          const message = e instanceof Error ? e.message : String(e);
-          console.log(`  ⚠️ Fallback to policy execution receipt: ${message}`);
-        }
-      }
-
-      const mockHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}` as `0x${string}`;
+    walletExecutor: async (_io: CommandIO, commandId: string) => async () => {
+      console.log(`  [MOCK host — simulated execution] Request for ${commandId}`);
+      const mockHash = `0x${"1234567890abcdef".repeat(4)}` as `0x${string}`;
       return {
         status: "CONFIRMED",
         hash: mockHash,
@@ -136,26 +138,17 @@ function createDemoContext(liveAccount?: PrivateKeyAccount): PluginCommandContex
       error: (msg: string) => console.error(`[Plugin Error] ${msg}`),
       warn: (msg: string) => console.warn(`[Plugin Warn] ${msg}`),
     },
-  };
+  } as unknown as PluginCommandContext;
 }
 
 async function runDemo() {
   console.log("================================================================================");
   console.log("🚀 METAMASK AGENT WALLET PLUGIN ON MONAD - A2A COMMERCE & TRUST DEMO");
   console.log(`🔗 Target Network: ${MONAD_NETWORK.name} (Chain ID: ${MONAD_NETWORK.chainId})`);
-  console.log(`⚡ RPC: ${MONAD_NETWORK.rpcUrl}`);
+  console.log("ℹ️ Environment: Mocked Agent Wallet Host Context (Simulated Execution)");
   console.log("================================================================================\n");
 
-  const rawKey = process.env.MONAD_TESTNET_PRIVATE_KEY;
-  let liveAccount: PrivateKeyAccount | undefined;
-  if (rawKey) {
-    const formattedKey = (rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`) as `0x${string}`;
-    liveAccount = privateKeyToAccount(formattedKey);
-    console.log(`🔑 Live Agent Wallet Connected: ${liveAccount.address}`);
-    console.log(`⚡ Live Mode: Real Monad Testnet on-chain transactions enabled!\n`);
-  }
-
-  const ctx = createDemoContext(liveAccount);
+  const ctx = createDemoContext();
 
   // 1. Register Agent Identity on Monad ERC-8004
   console.log("1️⃣ Step 1: Registering Agent Identity on Monad ERC-8004 Registry...");
@@ -166,14 +159,14 @@ async function runDemo() {
       name: "MonadAlphaWorker",
       description: "High-throughput specialized Monad analytics agent",
       endpoints: ["https://alpha-agent.monad.xyz/api"],
-      walletAddress: liveAccount ? liveAccount.address : "0x1234567890123456789012345678901234567890",
+      walletAddress: "0x1234567890123456789012345678901234567890",
       supportedProtocols: ["mcp", "x402"],
       active: true,
     })
   );
   console.log(`   ✅ Registered Agent: ${regResult.agentCard.name}`);
   console.log(`   📜 Registry: ${regResult.registryAddress}`);
-  console.log(`   🔗 TxHash: ${regResult.transactionHash}\n`);
+  console.log(`   🔗 TxHash: [MOCK HASH] ${regResult.transactionHash}\n`);
 
   // 2. Query Agent Identity
   console.log("2️⃣ Step 2: Querying Agent Card on Monad...");
@@ -191,42 +184,30 @@ async function runDemo() {
   const repResult = await repCheckCmd.execute(
     createConsoleIO({ agentId: "42", tag1: "speed", tag2: "accuracy" })
   );
-  console.log(`   📊 Reviews: ${repResult.feedbackCount}`);
-  console.log(`   ⭐ Average Score: ${repResult.averageScore} / 100`);
-  console.log(`   🛡️ Trust Tier: ${repResult.trustTier} (Approved for automated interaction)\n`);
+  console.log(`   📊 Reviews: ${repResult.feedbackCount} [MOCK DATA]`);
+  console.log(`   ⭐ Average Score: ${repResult.averageScore} / 100 [MOCK DATA]`);
+  console.log(`   🛡️ Trust Tier: ${repResult.trustTier} [MOCK DATA]\n`);
 
   // 4. Send Direct MON Payment
-  console.log("4️⃣ Step 4: Executing Direct Micro-Payment on Monad...");
+  console.log("4️⃣ Step 4: Executing Direct Micro-Payment on Monad (Simulated)...");
   const payCmd = new MonadPayCommand();
   payCmd.setContext(ctx);
-  const payRecipient = liveAccount ? liveAccount.address : "0x1234567890123456789012345678901234567890";
   const payResult = await payCmd.execute(
     createConsoleIO({
-      to: payRecipient,
+      to: "0x1234567890123456789012345678901234567890",
       amount: "0.001",
       token: "MON",
       memo: "Fast inference fee",
     })
   );
   console.log(`   💸 Sent ${payResult.amount} ${payResult.token} to ${payResult.to}`);
-  console.log(`   🔗 TxHash: ${payResult.transactionHash}`);
-  console.log(`   🔍 View on Explorer: ${MONAD_NETWORK.explorerUrl}/tx/${payResult.transactionHash}\n`);
+  console.log(`   🔗 TxHash: [MOCK HASH] ${payResult.transactionHash}`);
+  console.log(`   ℹ️ (Simulated host execution: placeholder transaction hash, no real broadcast)\n`);
 
-  // 5. Create A2A Subcontracted Task Escrow
-  console.log("5️⃣ Step 5: Subcontracting Task & Funding Escrow on Monad...");
-  const jobCmd = new MonadJobsCreateCommand();
-  jobCmd.setContext(ctx);
-  const jobResult = await jobCmd.execute(
-    createConsoleIO({
-      workerAddress: "0x1234567890123456789012345678901234567890",
-      bountyMon: "0.01",
-      taskDescription: "Run Monte-Carlo risk simulation on Monad liquidity pools",
-      deadlineHours: 6,
-    })
-  );
-  console.log(`   📦 Created Job: ${jobResult.jobId}`);
-  console.log(`   💰 Escrow Bounty: ${jobResult.bountyMon} MON`);
-  console.log(`   🔗 Escrow TxHash: ${jobResult.escrowTransactionHash}\n`);
+  // 5. A2A Subcontracted Task Escrow
+  console.log("5️⃣ Step 5: A2A Subcontracted Task Escrow on Monad...");
+  console.log("   ⚠️ [SKIPPED] Escrow writes are currently blocked (MetaMask testnet writes pending; escrow not deployed on mainnet).");
+  console.log("   ℹ️ See skills/monad-agent/SKILL.md and README.md for details.\n");
 
   // 6. Give Reputation Feedback on Monad
   console.log("6️⃣ Step 6: Submitting Immutable On-Chain Feedback (ERC-8004)...");
@@ -244,10 +225,10 @@ async function runDemo() {
     })
   );
   console.log(`   🌟 Rated Agent 42: Score 98/100`);
-  console.log(`   🔗 Feedback TxHash: ${giveResult.transactionHash}\n`);
+  console.log(`   🔗 Feedback TxHash: [MOCK HASH] ${giveResult.transactionHash}\n`);
 
   console.log("================================================================================");
-  console.log("🎉 ALL MONAD AGENT WALLET FLOWS COMPLETED SUCCESSFULLY!");
+  console.log("🎉 MONAD AGENT WALLET DEMO WALKTHROUGH COMPLETED!");
   console.log("================================================================================");
 }
 

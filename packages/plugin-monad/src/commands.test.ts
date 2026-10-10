@@ -12,6 +12,7 @@ import {
   type EvmExecutorResult,
   type InputSchema,
   CommandError,
+  executeTransaction,
 } from "./sdk.js";
 import {
   MONAD_CHAINS,
@@ -61,6 +62,8 @@ function createMockContext(overrides?: {
   contractReads?: Record<string, unknown>;
   codes?: Record<string, `0x${string}`>;
   onExecute?: (req: any) => void;
+  receiptStatus?: "success" | "reverted";
+  waitForReceiptError?: Error;
 }): PluginCommandContext {
   const executorResult: EvmExecutorResult = overrides?.executorResult ?? {
     status: "CONFIRMED",
@@ -101,32 +104,37 @@ function createMockContext(overrides?: {
       }
       return null;
     },
-    waitForTransactionReceipt: async () => ({
-      status: "success",
-      logs: [
-        {
-          address: "0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff",
-          topics: [
-            // JobCreated(uint256,address,address,uint256)
-            "0x8f4ee83cefe0dfb2f73fe6057bfa5b233fc43358bbb5f5606f444cbd4c5c4f8c",
-            "0x0000000000000000000000000000000000000000000000000000000000000007",
-            "0x0000000000000000000000001111111111111111111111111111111111111111",
-            "0x0000000000000000000000003333333333333333333333333333333333333333",
-          ],
-          data: "0x00000000000000000000000000000000000000000000000006f05b59d3b20000",
-        },
-        {
-          address: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
-          topics: [
-            // Registered(uint256,string,address)
-            "0xca52e62c367d81bb2e328eb795f7c7ba24afb478408a26c0e201d155c449bc4a",
-            "0x0000000000000000000000000000000000000000000000000000000000000007",
-            "0x0000000000000000000000001111111111111111111111111111111111111111",
-          ],
-          data: "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020646174613a6170706c69636174696f6e2f6a736f6e3b6261736536342c616263",
-        },
-      ],
-    }),
+    waitForTransactionReceipt: async () => {
+      if (overrides?.waitForReceiptError) {
+        throw overrides.waitForReceiptError;
+      }
+      return {
+        status: overrides?.receiptStatus ?? "success",
+        logs: [
+          {
+            address: "0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff",
+            topics: [
+              // JobCreated(uint256,address,address,uint256)
+              "0x8f4ee83cefe0dfb2f73fe6057bfa5b233fc43358bbb5f5606f444cbd4c5c4f8c",
+              "0x0000000000000000000000000000000000000000000000000000000000000007",
+              "0x0000000000000000000000001111111111111111111111111111111111111111",
+              "0x0000000000000000000000003333333333333333333333333333333333333333",
+            ],
+            data: "0x00000000000000000000000000000000000000000000000006f05b59d3b20000",
+          },
+          {
+            address: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+            topics: [
+              // Registered(uint256,string,address)
+              "0xca52e62c367d81bb2e328eb795f7c7ba24afb478408a26c0e201d155c449bc4a",
+              "0x0000000000000000000000000000000000000000000000000000000000000007",
+              "0x0000000000000000000000001111111111111111111111111111111111111111",
+            ],
+            data: "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020646174613a6170706c69636174696f6e2f6a736f6e3b6261736536342c616263",
+          },
+        ],
+      };
+    },
   } as unknown as PublicClient;
 
   return {
@@ -897,6 +905,209 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       process.chdir(originalCwd);
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it("Issue #20: executeTransaction throws TRANSACTION_FAILED on FAILED status", async () => {
+    const ctx = createMockContext({
+      executorResult: {
+        status: "FAILED",
+        failureDescription: "Insufficient funds in wallet",
+      },
+    });
+    const io = createMockIO({});
+
+    await assert.rejects(
+      executeTransaction(ctx, io, "test-source", {
+        chainId: 10143,
+        to: "0x1111111111111111111111111111111111111111",
+      }),
+      (err: any) =>
+        err instanceof CommandError &&
+        err.code === "TRANSACTION_FAILED" &&
+        err.message.includes("Insufficient funds in wallet")
+    );
+  });
+
+  it("Issue #20: executeTransaction throws TRANSACTION_FAILED when hash is missing", async () => {
+    const ctx = createMockContext({
+      executorResult: {
+        status: "CONFIRMED",
+        hash: undefined,
+      },
+    });
+    const io = createMockIO({});
+
+    await assert.rejects(
+      executeTransaction(ctx, io, "test-source", {
+        chainId: 10143,
+        to: "0x1111111111111111111111111111111111111111",
+      }),
+      (err: any) => err instanceof CommandError && err.code === "TRANSACTION_FAILED"
+    );
+  });
+
+  it("Issue #20: monad:pay distinguishes confirmed: true and status: CONFIRMED on receipt success", async () => {
+    const cmd = new MonadPayCommand();
+    const ctx = createMockContext({ receiptStatus: "success" });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      to: "0x4444444444444444444444444444444444444444",
+      amount: "0.5",
+      token: "MON",
+    });
+
+    const res = await cmd.execute(io);
+    assert.equal(res.confirmed, true);
+    assert.equal(res.status, "CONFIRMED");
+    assert.ok(io.logs.some((l: string) => l.includes("Paid 0.5 MON")));
+  });
+
+  it("Issue #20: monad:pay throws TRANSACTION_REVERTED on reverted transaction", async () => {
+    const cmd = new MonadPayCommand();
+    const ctx = createMockContext({ receiptStatus: "reverted" });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      to: "0x4444444444444444444444444444444444444444",
+      amount: "1.0",
+      token: "MON",
+    });
+
+    await assert.rejects(
+      cmd.execute(io),
+      (err: any) => err instanceof CommandError && err.code === "TRANSACTION_REVERTED"
+    );
+    assert.ok(!io.logs.some((l: string) => l.includes("Paid 1.0 MON")));
+  });
+
+  it("Issue #20: monad:pay returns confirmed: false and status: SUBMITTED on receipt timeout", async () => {
+    const cmd = new MonadPayCommand();
+    const timeoutErr = new Error("Timed out while waiting for transaction receipt.");
+    timeoutErr.name = "WaitForTransactionReceiptTimeoutError";
+
+    const ctx = createMockContext({ waitForReceiptError: timeoutErr });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      to: "0x4444444444444444444444444444444444444444",
+      amount: "0.25",
+      token: "MON",
+    });
+
+    const res = await cmd.execute(io);
+    assert.equal(res.confirmed, false);
+    assert.equal(res.status, "SUBMITTED");
+    assert.ok(io.logs.some((l: string) => l.includes("Status: SUBMITTED (unconfirmed)")));
+    assert.ok(!io.logs.some((l: string) => l.includes("Paid 0.25 MON")));
+  });
+
+  it("Issue #20: monad:jobs:complete throws TRANSACTION_REVERTED on reverted receipt", async () => {
+    const cmd = new MonadJobsCompleteCommand();
+    const ctx = createMockContext({ receiptStatus: "reverted" });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      jobId: "10",
+      resultURI: "ipfs://some-result",
+    });
+
+    await assert.rejects(
+      cmd.execute(io),
+      (err: any) => err instanceof CommandError && err.code === "TRANSACTION_REVERTED"
+    );
+    assert.ok(!io.logs.some((l: string) => l.includes("released and settled")));
+  });
+
+  it("Issue #20: monad:jobs:refund throws TRANSACTION_REVERTED on reverted receipt", async () => {
+    const cmd = new MonadJobsRefundCommand();
+    const ctx = createMockContext({ receiptStatus: "reverted" });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      jobId: "10",
+    });
+
+    await assert.rejects(
+      cmd.execute(io),
+      (err: any) => err instanceof CommandError && err.code === "TRANSACTION_REVERTED"
+    );
+    assert.ok(!io.logs.some((l: string) => l.includes("escrow refunded on")));
+  });
+
+  it("Issue #20 & #35: reputation:give confirms receipt and returns confirmed: true, status: CONFIRMED", async () => {
+    const cmd = new MonadReputationGiveCommand();
+    const ctx = createMockContext({ receiptStatus: "success" });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      agentId: "1",
+      value: "90",
+      chainId: "143",
+    });
+
+    const res = await cmd.execute(io);
+    assert.equal(res.confirmed, true);
+    assert.equal(res.status, "CONFIRMED");
+    assert.ok(io.logs.some((l: string) => l.includes("Feedback submitted for Agent #1")));
+  });
+
+  it("Issue #20 & #35: reputation:give throws TRANSACTION_REVERTED on reverted receipt and does NOT emit Feedback submitted", async () => {
+    const cmd = new MonadReputationGiveCommand();
+    const ctx = createMockContext({ receiptStatus: "reverted" });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      agentId: "1",
+      value: "90",
+      chainId: "143",
+    });
+
+    await assert.rejects(
+      cmd.execute(io),
+      (err: any) => err instanceof CommandError && err.code === "TRANSACTION_REVERTED"
+    );
+    assert.ok(!io.logs.some((l: string) => l.includes("Feedback submitted for Agent #1")));
+  });
+
+  it("Issue #20 & #35: reputation:give returns confirmed: false and status: SUBMITTED on receipt timeout", async () => {
+    const cmd = new MonadReputationGiveCommand();
+    const timeoutErr = new Error("Generic timeout");
+    timeoutErr.name = "WaitForTransactionReceiptTimeoutError";
+
+    const ctx = createMockContext({ waitForReceiptError: timeoutErr });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      agentId: "1",
+      value: "90",
+      chainId: "143",
+    });
+
+    const res = await cmd.execute(io);
+    assert.equal(res.confirmed, false);
+    assert.equal(res.status, "SUBMITTED");
+    assert.ok(!io.logs.some((l: string) => l.includes("Feedback submitted for Agent #1")));
+    assert.ok(io.logs.some((l: string) => l.includes("Status: SUBMITTED (unconfirmed)")));
+  });
+
+  it("Issue #20: handles WaitForTransactionReceiptTimeoutError name explicitly even without string match", async () => {
+    const cmd = new MonadPayCommand();
+    const timeoutErr = new Error("Operation halted");
+    timeoutErr.name = "WaitForTransactionReceiptTimeoutError";
+
+    const ctx = createMockContext({ waitForReceiptError: timeoutErr });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      to: "0x4444444444444444444444444444444444444444",
+      amount: "0.1",
+      token: "MON",
+    });
+
+    const res = await cmd.execute(io);
+    assert.equal(res.confirmed, false);
+    assert.equal(res.status, "SUBMITTED");
   });
 });
 

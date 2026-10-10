@@ -188,6 +188,7 @@ command above, or to any client's MCP settings:
 | `No CLI refresh token available` | Write command without a session | `mm login`, then `mm init` on first run |
 | `PLUGIN_METADATA_UNAVAILABLE … E404` | Version published minutes ago | Wait a minute and retry |
 | `ESCROW_NOT_DEPLOYED` | `jobs` on mainnet | Use `--chain-id 10143` |
+| `TRANSACTION_REVERTED` | On-chain transaction reverted (e.g. self-rating in reputation, insufficient token balance or transfer permission) | Check transaction on Monad Explorer; verify preconditions before retrying |
 | `[AWAITING_MFA]` | Write is waiting for approval | Approve in MetaMask, then `mm wallet requests watch <id>` |
 | `Invalid chainId` or a write stuck on `Submitting...` on `--chain-id 10143` | MetaMask's wallet service doesn't support writes on Monad testnet | Stop the command (Ctrl+C), nothing was sent. Use `--chain-id 143` |
 | `FILE_EXISTS` from `mm monad skill --install` | The skill file is already installed | Add `--force` to overwrite it |

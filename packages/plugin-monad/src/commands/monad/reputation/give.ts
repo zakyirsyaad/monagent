@@ -12,6 +12,7 @@ import {
   InputFieldType,
   type InputSchema,
   executeTransaction,
+  awaitReceiptConfirmation,
 } from "../../../sdk.js";
 import { PluginCommand } from "@metamask/agent-wallet/plugin";
 
@@ -19,6 +20,8 @@ export interface GiveReputationResult {
   transactionHash: `0x${string}`;
   feedback: MonadReputationFeedback;
   registryAddress: string;
+  confirmed: boolean;
+  status: "CONFIRMED" | "SUBMITTED";
   chainId: number;
 }
 
@@ -118,19 +121,51 @@ export class MonadReputationGiveCommand extends BaseMonadPluginCommand<GiveReput
       ],
     });
 
-    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
+    const { hash } = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: chain.chainId,
       to: chain.reputationRegistry,
       data,
     });
 
-    io.emit(`Feedback submitted for Agent #${feedback.agentId} on ${chain.name}! Score: ${feedback.value}. TxHash: ${hash}`);
+    io.emit(
+      `Feedback transaction submitted for Agent #${feedback.agentId} on ${chain.name}, pending confirmation... TxHash: ${hash}`
+    );
+
+    const client = this.getPublicClient(chain.chainId);
+    const { confirmed, status } = await awaitReceiptConfirmation(
+      client,
+      hash,
+      chain,
+      `Feedback submission for Agent #${feedback.agentId}`
+    );
+
+    if (!confirmed) {
+      io.emit(
+        `Feedback transaction submitted for Agent #${feedback.agentId} on ${chain.name}, but confirmation timed out. Status: SUBMITTED (unconfirmed). TxHash: ${hash}`
+      );
+      io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
+
+      return {
+        transactionHash: hash,
+        feedback,
+        registryAddress: chain.reputationRegistry,
+        confirmed: false,
+        status: "SUBMITTED",
+        chainId: chain.chainId,
+      };
+    }
+
+    io.emit(
+      `Feedback submitted for Agent #${feedback.agentId} on ${chain.name}! Score: ${feedback.value}. TxHash: ${hash}`
+    );
     io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
 
     return {
       transactionHash: hash,
       feedback,
       registryAddress: chain.reputationRegistry,
+      confirmed: true,
+      status: "CONFIRMED",
       chainId: chain.chainId,
     };
   }

@@ -96,7 +96,7 @@ export class MonadJobsCreateCommand extends BaseMonadPluginCommand<CreateJobResu
       args: [workerAddress as `0x${string}`, taskDescription, BigInt(deadlineHours)],
     });
 
-    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
+    const { hash } = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: chain.chainId,
       to: chain.escrow,
       value: parseEther(bountyMon),

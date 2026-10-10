@@ -11,6 +11,7 @@ import {
   InputFieldType,
   type InputSchema,
   executeTransaction,
+  awaitReceiptConfirmation,
 } from "../../../sdk.js";
 import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
@@ -19,6 +20,8 @@ export interface CompleteJobResult {
   resultURI: string;
   transactionHash: `0x${string}`;
   chainId: number;
+  confirmed: boolean;
+  status: "CONFIRMED" | "SUBMITTED";
 }
 
 export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJobResult> {
@@ -82,11 +85,35 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       args: [BigInt(jobId), resultURI],
     });
 
-    const hash = await executeTransaction(this.ctx, io, this.pluginCommandId, {
+    const { hash } = await executeTransaction(this.ctx, io, this.pluginCommandId, {
       chainId: chain.chainId,
       to: chain.escrow,
       data,
     });
+
+    io.emit(`Escrow release transaction submitted for Job #${jobId} on ${chain.name}, pending confirmation... TxHash: ${hash}`);
+
+    const client = this.getPublicClient(chain.chainId);
+    const { confirmed, status } = await awaitReceiptConfirmation(
+      client,
+      hash,
+      chain,
+      `Job #${jobId} escrow release`
+    );
+
+    if (!confirmed) {
+      io.emit(`Escrow release transaction submitted for Job #${jobId} on ${chain.name}, but confirmation timed out. Status: SUBMITTED (unconfirmed). TxHash: ${hash}`);
+      io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
+
+      return {
+        jobId,
+        resultURI,
+        transactionHash: hash,
+        chainId: chain.chainId,
+        confirmed: false,
+        status: "SUBMITTED",
+      };
+    }
 
     io.emit(`Job #${jobId} escrow released and settled on ${chain.name}! TxHash: ${hash}`);
     io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
@@ -96,6 +123,8 @@ export class MonadJobsCompleteCommand extends BaseMonadPluginCommand<CompleteJob
       resultURI,
       transactionHash: hash,
       chainId: chain.chainId,
+      confirmed: true,
+      status: "CONFIRMED",
     };
   }
 }

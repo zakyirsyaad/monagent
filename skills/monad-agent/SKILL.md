@@ -138,7 +138,8 @@ mainnet `143`, with ERC-8004 reputation as the trust layer:
 | `INVALID_TOKEN_CONTRACT` | No contract or no `decimals()` at the token address | Check the token address and chain |
 | `ESCROW_NOT_DEPLOYED` | Escrow used on a chain without the contract | Use `--chain-id 10143` |
 | `AGENT_NOT_FOUND` | Agent id doesn't exist on that chain | Check the id and `--chain-id` |
-| `TRANSACTION_FAILED` | The wallet didn't confirm the transaction (rejected, failed, reverted) | Report to the user; check balance and approval |
+| `TRANSACTION_FAILED` | The wallet didn't confirm the transaction (rejected, failed, missing hash) | Report to the user; check balance and approval |
+| `TRANSACTION_REVERTED` | Transaction was broadcast but reverted on-chain | Check the explorer link; verify balance, allowances, or contract authorization before retrying |
 | `RECEIPT_PARSING_FAILED` | Tx confirmed but the expected event wasn't found | Look up the tx hash on the explorer before retrying |
 | `FETCH_FAILED` | x402 URL unreachable | Check the URL; nothing was paid |
 | `UNSUPPORTED_PAYMENT_NETWORK` | Server offers no `exact` payment on the chosen chain | Try the other chain only if the user allows it |
