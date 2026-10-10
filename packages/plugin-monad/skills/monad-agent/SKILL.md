@@ -149,6 +149,7 @@ mainnet `143`, with ERC-8004 reputation as the trust layer:
 | `PAYER_MISMATCH` | Signature isn't from `--payer` | Set `--payer` to the active `mm` wallet; nothing was sent |
 | `SIGNATURE_VERIFICATION_FAILED` | Couldn't verify the payment signature | Don't retry blindly; nothing was sent |
 | `SIGNING_FAILED` / `PAYMENT_PAYLOAD_FAILED` | Wallet didn't produce the x402 authorization | Check the wallet is unlocked and approve the request |
+| `FILE_EXISTS` | `monad skill --install` target file already exists | Pass `--force` to overwrite the existing skill file, or choose another target |
 
 Host errors you may also see: `No CLI refresh token available` → run `mm login`;
 `PLUGIN_CLI_VERSION` → reinstall the plugin at `@latest`.
