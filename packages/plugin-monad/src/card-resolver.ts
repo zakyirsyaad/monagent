@@ -13,6 +13,34 @@ export interface ResolveAgentCardResult {
   cardParseError?: string;
 }
 
+export function classifyCardParseError(err: any): string {
+  const msg = String(err?.message || err);
+  if (msg.includes("HTTP fetch failed with status")) {
+    const match = msg.match(/HTTP fetch failed with status (\d+)/);
+    return match ? `HTTP_${match[1]}` : "HTTP_ERROR";
+  }
+  if (msg.includes("timeout") || msg.includes("aborted")) return "TIMEOUT";
+  if (msg.includes("exceeded maximum size limit")) return "TOO_LARGE";
+  if (msg.includes("JSON") || msg.includes("SyntaxError")) return "INVALID_JSON";
+  if (
+    msg.includes("Unsupported tokenURI") ||
+    msg.includes('Only "https:" is permitted') ||
+    msg.includes("prohibited") ||
+    msg.includes("Invalid protocol") ||
+    msg.includes("Invalid URL")
+  ) {
+    return "UNSUPPORTED_URI";
+  }
+  if (
+    msg.includes("Failed to reach target URL") ||
+    msg.includes("fetch failed") ||
+    msg.includes("DNS resolution failed")
+  ) {
+    return "FETCH_FAILED";
+  }
+  return "PARSE_ERROR";
+}
+
 const MAX_CARD_BODY_BYTES = 65536; // 64 KB cap
 
 /**
@@ -129,7 +157,7 @@ export async function resolveAgentCard(
     return {
       card: undefined,
       cardUri: trimmedUri,
-      cardParseError: err?.message || String(err),
+      cardParseError: classifyCardParseError(err),
     };
   }
 }

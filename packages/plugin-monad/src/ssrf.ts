@@ -1,21 +1,56 @@
 import net from "node:net";
 import dns from "node:dns";
+import { Agent } from "undici";
 import { CommandError } from "./sdk.js";
 
 /**
+ * Cloud platform metadata and host agent IPs that are public or non-RFC1918.
+ * Explicitly denied to prevent host-level metadata extraction.
+ */
+export const PLATFORM_METADATA_IPS = new Set([
+  "168.63.129.16",   // Azure IMDS / host agent (public Microsoft-owned IP)
+  "169.254.169.254", // AWS / GCP / Azure IMDS (link-local)
+  "100.100.100.200", // Alibaba Cloud IMDS (CGNAT)
+]);
+
+/**
+ * Decodes 32-bit trailing IPv4 address from either dotted-quad or two 16-bit hex chunks.
+ * e.g. "127.0.0.1" -> "127.0.0.1"
+ * e.g. "7f00:1" -> "127.0.0.1"
+ * e.g. "a9fe:a9fe" -> "169.254.169.254"
+ */
+export function decodeEmbeddedIpv4(tail: string): string | null {
+  const trimmed = tail.trim().toLowerCase();
+  if (net.isIP(trimmed) === 4) return trimmed;
+
+  const hexMatch = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(trimmed);
+  if (hexMatch) {
+    const high = parseInt(hexMatch[1], 16);
+    const low = parseInt(hexMatch[2], 16);
+    const n = ((high << 16) | low) >>> 0;
+    return `${(n >>> 24) & 255}.${(n >>> 16) & 255}.${(n >>> 8) & 255}.${n & 255}`;
+  }
+  return null;
+}
+
+/**
  * Checks whether an IPv4 or IPv6 address belongs to private, loopback,
- * link-local, carrier-grade NAT, multicast, or reserved ranges.
+ * link-local, carrier-grade NAT, multicast, or reserved ranges, or cloud metadata.
  */
 export function isPrivateOrReservedIp(ip: string): boolean {
-  const family = net.isIP(ip);
+  const trimmedIp = (ip || "").trim();
+  const family = net.isIP(trimmedIp);
+
   if (family === 4) {
-    const parts = ip.split(".").map(Number);
+    if (PLATFORM_METADATA_IPS.has(trimmedIp)) return true;
+
+    const parts = trimmedIp.split(".").map(Number);
     if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) {
       return true;
     }
     const [b0, b1, b2, b3] = parts;
 
-    // 0.0.0.0/8 (Current network / "this" network)
+    // 0.0.0.0/8 (Current network)
     if (b0 === 0) return true;
     // 10.0.0.0/8 (Private-Use)
     if (b0 === 10) return true;
@@ -52,18 +87,26 @@ export function isPrivateOrReservedIp(ip: string): boolean {
   }
 
   if (family === 6) {
-    const normalized = ip.toLowerCase().trim();
+    const normalized = trimmedIp.toLowerCase();
     // Unspecified
     if (normalized === "::" || normalized === "0:0:0:0:0:0:0:0") return true;
     // Loopback
     if (normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") return true;
 
-    // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+    // IPv4-mapped IPv6 (::ffff:0:0/96, RFC 4291)
     if (normalized.startsWith("::ffff:")) {
-      const ipv4Part = normalized.slice(7);
-      if (net.isIP(ipv4Part) === 4) {
-        return isPrivateOrReservedIp(ipv4Part);
-      }
+      const tail = normalized.slice("::ffff:".length);
+      const decoded = decodeEmbeddedIpv4(tail);
+      if (decoded) return isPrivateOrReservedIp(decoded);
+      return true; // unrecognized mapped form -> unsafe
+    }
+
+    // NAT64 well-known prefix (64:ff9b::/96, RFC 6052) and local-use (64:ff9b:1::/48, RFC 8215)
+    if (normalized.startsWith("64:ff9b:") || normalized.startsWith("64:ff9b:1:")) {
+      const tail = normalized.split(":").slice(-2).join(":");
+      const decoded = decodeEmbeddedIpv4(tail);
+      if (decoded) return isPrivateOrReservedIp(decoded);
+      return true; // unrecognized embedded form -> unsafe
     }
 
     // Unique Local Addresses (fc00::/7 -> fc00.. to fdff..)
@@ -92,6 +135,11 @@ export interface ValidateUrlOptions {
   lookup?: (hostname: string) => Promise<string[]>;
 }
 
+export interface ValidatedSafeUrlResult {
+  url: URL;
+  addresses: string[];
+}
+
 /**
  * Validates that a URL is strictly HTTPS and does not resolve to private,
  * loopback, link-local, or metadata endpoints (anti-SSRF guard).
@@ -100,6 +148,14 @@ export async function validateSafeUrl(
   urlString: string,
   options?: ValidateUrlOptions
 ): Promise<URL> {
+  const res = await validateSafeUrlWithAddresses(urlString, options);
+  return res.url;
+}
+
+export async function validateSafeUrlWithAddresses(
+  urlString: string,
+  options?: ValidateUrlOptions
+): Promise<ValidatedSafeUrlResult> {
   let parsed: URL;
   try {
     parsed = new URL(urlString);
@@ -132,7 +188,8 @@ export async function validateSafeUrl(
     host.endsWith(".local") ||
     host.endsWith(".internal") ||
     host.endsWith(".lan") ||
-    host === "metadata.google.internal"
+    host === "metadata.google.internal" ||
+    host === "metadata.azure.internal"
   ) {
     throw new CommandError(
       "INVALID_INPUT",
@@ -150,7 +207,7 @@ export async function validateSafeUrl(
         "Provide a public HTTPS endpoint."
       );
     }
-    return parsed;
+    return { url: parsed, addresses: [host] };
   }
 
   // Resolve hostname via DNS
@@ -188,7 +245,7 @@ export async function validateSafeUrl(
     }
   }
 
-  return parsed;
+  return { url: parsed, addresses };
 }
 
 export interface SafeFetchOptions extends RequestInit {
@@ -197,8 +254,8 @@ export interface SafeFetchOptions extends RequestInit {
 }
 
 /**
- * Executes fetch with manual redirect handling and strict SSRF re-validation
- * on each redirect hop.
+ * Executes fetch with manual redirect handling, strict SSRF re-validation
+ * on each redirect hop, and socket address pinning to prevent DNS rebinding (TOCTOU).
  */
 export async function safeFetch(
   targetUrl: string,
@@ -209,11 +266,24 @@ export async function safeFetch(
   let redirects = 0;
 
   while (true) {
-    const validated = await validateSafeUrl(currentUrl, { lookup: init?.lookup });
+    const { url: validated, addresses } = await validateSafeUrlWithAddresses(currentUrl, {
+      lookup: init?.lookup,
+    });
+    const pinnedIp = addresses[0];
 
-    const fetchInit: RequestInit = {
+    // Mitigate DNS rebinding: pin socket connection to the validated IP address
+    const dispatcher = new Agent({
+      connect: {
+        lookup: (_hostname: string, _opts: any, cb: (err: Error | null, address: string, family: number) => void) => {
+          cb(null, pinnedIp, net.isIP(pinnedIp) === 6 ? 6 : 4);
+        },
+      },
+    });
+
+    const fetchInit: any = {
       ...init,
       redirect: "manual",
+      dispatcher,
     };
 
     let res: Response;

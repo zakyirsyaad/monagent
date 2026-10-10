@@ -165,4 +165,84 @@ describe("Anti-SSRF Security Guard", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("Issue #31: blocks IPv4-mapped IPv6 URLs including normalized hex representations", async () => {
+    // Tests going through validateSafeUrl with full URL strings (Issue #31 acceptance criteria)
+    await assert.rejects(
+      validateSafeUrl("https://[::ffff:127.0.0.1]/paid"),
+      (err: any) => err instanceof CommandError && err.code === "INVALID_INPUT"
+    );
+
+    await assert.rejects(
+      validateSafeUrl("https://[::ffff:169.254.169.254]/latest/meta-data/"),
+      (err: any) => err instanceof CommandError && err.code === "INVALID_INPUT"
+    );
+
+    // Direct assertions on normalized hex representations produced by new URL()
+    assert.equal(isPrivateOrReservedIp("::ffff:7f00:1"), true);
+    assert.equal(isPrivateOrReservedIp("::ffff:a9fe:a9fe"), true);
+  });
+
+  it("Issue #33: blocks NAT64 prefix embedded private IPv4 addresses", async () => {
+    // Embedded 127.0.0.1
+    await assert.rejects(
+      validateSafeUrl("https://[64:ff9b::7f00:1]/paid"),
+      (err: any) => err instanceof CommandError && err.code === "INVALID_INPUT"
+    );
+
+    // Embedded 169.254.169.254
+    await assert.rejects(
+      validateSafeUrl("https://[64:ff9b::a9fe:a9fe]/paid"),
+      (err: any) => err instanceof CommandError && err.code === "INVALID_INPUT"
+    );
+
+    // Embedded public IPv4 (8.8.8.8) should still be accepted
+    const parsed = await validateSafeUrl("https://[64:ff9b::808:808]/paid");
+    assert.equal(parsed.protocol, "https:");
+  });
+
+  it("Issue #34: blocks Azure IMDS 168.63.129.16 and metadata.azure.internal", async () => {
+    assert.equal(isPrivateOrReservedIp("168.63.129.16"), true);
+
+    await assert.rejects(
+      validateSafeUrl("https://168.63.129.16/metadata"),
+      (err: any) => err instanceof CommandError && err.code === "INVALID_INPUT"
+    );
+
+    await assert.rejects(
+      validateSafeUrl("https://metadata.azure.internal/metadata"),
+      (err: any) => err instanceof CommandError && err.code === "INVALID_INPUT"
+    );
+  });
+
+  it("Issue #32: mitigates DNS rebinding by pinning socket connection to validated IP", async () => {
+    let callCount = 0;
+    // Resolver alternates: first call returns public IP (104.18.2.3), second returns private IP (127.0.0.1)
+    const rebindingLookup = async () => {
+      callCount++;
+      return callCount === 1 ? ["104.18.2.3"] : ["127.0.0.1"];
+    };
+
+    const originalFetch = globalThis.fetch;
+    let dispatcherCaptured: any = null;
+    globalThis.fetch = async (_url: any, init?: any) => {
+      dispatcherCaptured = init?.dispatcher;
+      return new Response("ok", { status: 200 });
+    };
+
+    try {
+      const res = await safeFetch("https://rebinding.example.com/paid", { lookup: rebindingLookup });
+      assert.equal(res.status, 200);
+      assert.ok(dispatcherCaptured, "Dispatcher must be configured to pin socket address");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #32: exercises real DNS resolution against public domain", async () => {
+    // Tests real dns.promises.lookup against a known public domain
+    const parsed = await validateSafeUrl("https://dns.google/resolve");
+    assert.equal(parsed.protocol, "https:");
+    assert.equal(parsed.hostname, "dns.google");
+  });
 });
