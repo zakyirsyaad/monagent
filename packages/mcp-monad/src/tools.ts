@@ -192,6 +192,9 @@ export const TOOLS: ToolDefinition[] = [
       return args;
     },
     formatSummary: (data) => {
+      if (data?.readFailed) {
+        return `Agent #${data?.agentId} Reputation:\nTrust Tier: UNKNOWN (Registry read failed: ${data?.readError || "REPUTATION_UNAVAILABLE"})\nWarning: Do not proceed with payment for unverified agents.`;
+      }
       return `Agent #${data?.agentId} Reputation:\nTrust Tier: ${data?.trustTier}\nAverage Score: ${data?.averageScore}/100\nFeedback Count: ${data?.feedbackCount} reviews`;
     },
   },

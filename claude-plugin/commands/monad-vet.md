@@ -14,7 +14,7 @@ Arguments: `$ARGUMENTS` — first the agentId, then optionally a chainId (`143` 
 2. `mm monad reputation check <agentId> --chain-id <chainId> --json` — record `feedbackCount`,
    `averageScore` and `trustTier`.
 3. Report the verdict: the tier plus the reasons, and its decision rule — `HIGH` proceed; `MEDIUM`
-   proceed only if the user agrees; `LOW` recommend against; `UNRATED` ask the user.
+   proceed only if the user agrees; `LOW` recommend against; `UNRATED` ask the user; `UNKNOWN` stop (vetting failed).
 
 On `AGENT_NOT_FOUND`, check the id and chain; don't retry unchanged. For any write (paying,
 rating, registering), hand off to the `agent-payer` agent, the `api-buyer` agent or the

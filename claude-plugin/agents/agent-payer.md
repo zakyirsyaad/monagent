@@ -13,7 +13,7 @@ syntax and error codes are in the shared `monad-agent` skill.
 ## What you do
 
 1. Vet the recipient (`identity get` + `reputation check`) and apply the tier decision rule:
-   `LOW` stop; `UNRATED` and `MEDIUM` ask the user.
+   `LOW` or `UNKNOWN` stop; `UNRATED` and `MEDIUM` ask the user.
 2. Confirm with the user: chain `143`, recipient wallet address, amount, token. Wait for an
    explicit yes.
 3. Pay: `mm monad pay --to <address> --amount <amount> --token <token> --chain-id 143 --json`.
