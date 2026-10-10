@@ -10,7 +10,11 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "demo:local": "tsx scripts/demo-monad-plugin.ts",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test:all",
+    "test:workspaces": "npm run test --workspaces --if-present",
+    "test:scripts": "node --test scripts/*.test.mjs",
+    "test:contracts": "tsx --test contracts/test/*.test.ts",
+    "test:all": "npm run test:workspaces && npm run test:scripts && npm run test:contracts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "engines": {

@@ -149,10 +149,12 @@ the AI agent integrations in detail, and troubleshooting. The agent-facing guide
 ```bash
 npm install
 npm run typecheck
-npm test --workspace @zakyirsyaad/monagent-plugin
-npm test --workspace @zakyirsyaad/monagent-mcp
-node --test scripts/*.test.mjs
-(cd contracts && forge test)
+npm test                                           # runs all suites (workspaces, scripts, simulation)
+npm run test:all                                   # alias for npm test
+npm test --workspace @zakyirsyaad/monagent-plugin  # test plugin directly
+npm test --workspace @zakyirsyaad/monagent-mcp     # test MCP server directly
+node --test scripts/*.test.mjs                     # repo and packaging guards
+(cd contracts && forge test)                       # Foundry contract tests
 ```
 
 ```
