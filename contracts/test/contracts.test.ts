@@ -17,6 +17,9 @@ describe("Monad Smart Contracts Artifacts & ABI Verification", () => {
       "contracts/out/MonadAgentRegistry.sol/MonadAgentRegistry.json"
     );
     if (!existsSync(artifactPath)) {
+      if (process.env.REQUIRE_CONTRACT_ARTIFACTS === "1") {
+        assert.fail("contracts/out missing but REQUIRE_CONTRACT_ARTIFACTS=1 — run `(cd contracts && forge build)`");
+      }
       t.skip("contracts/out not found; run `(cd contracts && forge build)` to compile");
       return;
     }
@@ -40,6 +43,9 @@ describe("Monad Smart Contracts Artifacts & ABI Verification", () => {
       "contracts/out/MonadA2AEscrow.sol/MonadA2AEscrow.json"
     );
     if (!existsSync(artifactPath)) {
+      if (process.env.REQUIRE_CONTRACT_ARTIFACTS === "1") {
+        assert.fail("contracts/out missing but REQUIRE_CONTRACT_ARTIFACTS=1 — run `(cd contracts && forge build)`");
+      }
       t.skip("contracts/out not found; run `(cd contracts && forge build)` to compile");
       return;
     }

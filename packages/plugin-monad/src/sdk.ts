@@ -140,6 +140,68 @@ export interface ExecutedTransactionResult {
   status: "CONFIRMED" | "SUBMITTED" | string;
 }
 
+export interface ReceiptConfirmationResult {
+  confirmed: boolean;
+  status: "CONFIRMED" | "SUBMITTED";
+  receipt?: any;
+}
+
+/**
+ * Waits for transaction receipt with a bounded timeout.
+ * - If receipt status is "reverted", throws TRANSACTION_REVERTED with explorer URL and message.
+ * - If receipt status is "success", returns { confirmed: true, status: "CONFIRMED", receipt }.
+ * - If receipt times out, returns { confirmed: false, status: "SUBMITTED" }.
+ */
+export async function awaitReceiptConfirmation(
+  client: PublicClient,
+  hash: `0x${string}`,
+  chain: { name: string; explorerUrl: string },
+  operationLabel: string,
+  timeoutMs: number = 15_000
+): Promise<ReceiptConfirmationResult> {
+  let receipt: any = null;
+  let timedOut = false;
+
+  try {
+    receipt = await client.waitForTransactionReceipt({
+      hash,
+      timeout: timeoutMs,
+    });
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
+    if (
+      err?.name === "WaitForTransactionReceiptTimeoutError" ||
+      errMsg.toLowerCase().includes("timed out") ||
+      errMsg.toLowerCase().includes("timeout")
+    ) {
+      timedOut = true;
+    } else {
+      throw err;
+    }
+  }
+
+  if (timedOut || !receipt) {
+    return {
+      confirmed: false,
+      status: "SUBMITTED",
+    };
+  }
+
+  if (receipt.status === "reverted") {
+    throw new CommandError(
+      "TRANSACTION_REVERTED",
+      `${operationLabel} reverted on-chain: ${hash}. Explorer: ${chain.explorerUrl}/tx/${hash}`,
+      "Check transaction on Monad Explorer and verify preconditions or authorization."
+    );
+  }
+
+  return {
+    confirmed: true,
+    status: "CONFIRMED",
+    receipt,
+  };
+}
+
 /**
  * Helper function to execute transactions through MetaMask EvmWalletExecutor
  */

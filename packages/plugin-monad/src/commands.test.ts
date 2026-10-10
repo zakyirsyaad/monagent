@@ -1846,5 +1846,61 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     assert.equal(res.readFailed, false);
     assert.equal(res.trustTier, "HIGH");
   });
+
+  it("Issue #35: reputation:give confirms receipt and returns confirmed: true, status: CONFIRMED", async () => {
+    const cmd = new MonadReputationGiveCommand();
+    const ctx = createMockContext({ receiptStatus: "success" });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      agentId: "1",
+      value: "90",
+      chainId: "143",
+    });
+
+    const res = await cmd.execute(io);
+    assert.equal(res.confirmed, true);
+    assert.equal(res.status, "CONFIRMED");
+    assert.ok(io.logs.some((l: string) => l.includes("Feedback submitted for Agent #1")));
+  });
+
+  it("Issue #35: reputation:give throws TRANSACTION_REVERTED on reverted receipt and does NOT emit Feedback submitted", async () => {
+    const cmd = new MonadReputationGiveCommand();
+    const ctx = createMockContext({ receiptStatus: "reverted" });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      agentId: "1",
+      value: "90",
+      chainId: "143",
+    });
+
+    await assert.rejects(
+      cmd.execute(io),
+      (err: any) => err instanceof CommandError && err.code === "TRANSACTION_REVERTED"
+    );
+    assert.ok(!io.logs.some((l: string) => l.includes("Feedback submitted for Agent #1")));
+  });
+
+  it("Issue #35: reputation:give returns confirmed: false and status: SUBMITTED on receipt timeout", async () => {
+    const cmd = new MonadReputationGiveCommand();
+    const timeoutErr = new Error("Timed out waiting for transaction receipt");
+    timeoutErr.name = "WaitForTransactionReceiptTimeoutError";
+
+    const ctx = createMockContext({ waitForReceiptError: timeoutErr });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({
+      agentId: "1",
+      value: "90",
+      chainId: "143",
+    });
+
+    const res = await cmd.execute(io);
+    assert.equal(res.confirmed, false);
+    assert.equal(res.status, "SUBMITTED");
+    assert.ok(!io.logs.some((l: string) => l.includes("Feedback submitted for Agent #1")));
+    assert.ok(io.logs.some((l: string) => l.includes("Status: SUBMITTED (unconfirmed)")));
+  });
 });
 
