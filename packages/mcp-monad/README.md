@@ -10,8 +10,8 @@ runtimes) through safe, typed tools.
 
 ## Architecture & Security Model
 
-- **No keys, no credentials**: The server holds no private keys, mnemonics, or RPC secrets.
-- **Local MetaMask CLI bridge**: Every operation is delegated locally via `execFile` (with strict argument
+- **No keys, no credentials**: The server holds no private keys, mnemonics, or RPC secrets. By default, `MM_PASSWORD` is omitted from child process environments unless explicitly opted in via `MONAGENT_MCP_ALLOW_BYOK_PASSWORD=1`.
+- **Local MetaMask CLI bridge**: Every operation is delegated locally via `spawn(..., { shell: false })` (with strict argument
   arrays, no shell interpolation) to the official MetaMask Agent Wallet (`mm`) CLI.
 - **Enforced policy engine**: All transactions, EIP-712/EIP-3009 signatures, and funds movement are
   evaluated by MetaMask's transaction protection policy engine.
