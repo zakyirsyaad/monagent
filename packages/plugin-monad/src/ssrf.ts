@@ -1,7 +1,9 @@
 import net from "node:net";
 import dns from "node:dns";
-import { Agent } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 import { CommandError } from "./sdk.js";
+
+const defaultNativeFetch = globalThis.fetch;
 
 /**
  * Cloud platform metadata and host agent IPs that are public or non-RFC1918.
@@ -251,6 +253,7 @@ export async function validateSafeUrlWithAddresses(
 export interface SafeFetchOptions extends RequestInit {
   maxRedirects?: number;
   lookup?: (hostname: string) => Promise<string[]>;
+  fetchFn?: (url: string, init?: any) => Promise<Response>;
 }
 
 /**
@@ -270,25 +273,41 @@ export async function safeFetch(
       lookup: init?.lookup,
     });
     const pinnedIp = addresses[0];
+    const family = net.isIP(pinnedIp) === 6 ? 6 : 4;
 
-    // Mitigate DNS rebinding: pin socket connection to the validated IP address
     const dispatcher = new Agent({
       connect: {
-        lookup: (_hostname: string, _opts: any, cb: (err: Error | null, address: string, family: number) => void) => {
-          cb(null, pinnedIp, net.isIP(pinnedIp) === 6 ? 6 : 4);
+        lookup: (_hostname: string, opts: any, cb: (err: Error | null, addressOrAddresses: any, family?: number) => void) => {
+          if (opts?.all) {
+            cb(null, [{ address: pinnedIp, family }]);
+          } else {
+            cb(null, pinnedIp, family);
+          }
         },
       },
     });
 
-    const fetchInit: any = {
-      ...init,
-      redirect: "manual",
-      dispatcher,
-    };
+    const isGlobalStubbed = globalThis.fetch !== defaultNativeFetch;
+    const customFetch = init?.fetchFn || (isGlobalStubbed ? globalThis.fetch : null);
 
     let res: Response;
+
     try {
-      res = await fetch(validated.href, fetchInit);
+      if (customFetch) {
+        const fetchInit: any = {
+          ...init,
+          redirect: "manual",
+          dispatcher,
+        };
+        res = await customFetch(validated.href, fetchInit);
+      } else {
+        const fetchInit: any = {
+          ...init,
+          redirect: "manual",
+          dispatcher,
+        };
+        res = (await undiciFetch(validated.href, fetchInit)) as unknown as Response;
+      }
     } catch (err: any) {
       if (err instanceof CommandError) throw err;
       throw new CommandError(
@@ -296,6 +315,8 @@ export async function safeFetch(
         `Failed to reach target URL: ${err?.message || String(err)}`,
         "Verify endpoint URL and network connectivity."
       );
+    } finally {
+      await dispatcher.close();
     }
 
     if (res.status >= 300 && res.status < 400) {

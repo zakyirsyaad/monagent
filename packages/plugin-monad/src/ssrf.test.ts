@@ -245,4 +245,10 @@ describe("Anti-SSRF Security Guard", () => {
     assert.equal(parsed.protocol, "https:");
     assert.equal(parsed.hostname, "dns.google");
   });
+
+  it("Issue #32: performs real outbound HTTPS request through undiciFetch with pinned dispatcher", async () => {
+    // Exercises undiciFetch + Agent pinned connection end-to-end against public endpoint
+    const res = await safeFetch("https://dns.google/resolve?name=example.com");
+    assert.equal(res.status, 200);
+  });
 });
