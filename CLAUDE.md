@@ -76,10 +76,13 @@ x402 Facilitator    https://x402-facilitator.molandak.org         https://x402-f
 
 ```bash
 npm install                                             # install monorepo dependencies
+npm test                                                # run all test suites (workspaces, scripts, simulation)
+npm run test:all                                        # alias for npm test
 npm test --workspace @zakyirsyaad/monagent-plugin       # test MetaMask plugin commands
+npm test --workspace @zakyirsyaad/monagent-mcp          # test MCP server & tools
 npm run typecheck                                       # typecheck full repo
-npx tsx --test contracts/test/*.test.ts                 # contract simulation tests
 node --test scripts/*.test.mjs                          # repo contents, plugin packaging, workflow agents
+npx tsx --test contracts/test/*.test.ts                 # contract simulation tests
 cd contracts && forge test                              # run Solidity tests
 npm run build --workspace @zakyirsyaad/monagent-plugin  # emit dist/ and regenerate oclif.manifest.json
 ```

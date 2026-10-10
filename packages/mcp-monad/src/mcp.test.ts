@@ -66,6 +66,196 @@ describe("@zakyirsyaad/monagent-mcp: CLI execution & safety", () => {
     assert.equal(ALLOWED_SUBCOMMANDS.length, 9);
   });
 
+  it("resolves mm path from default or MM_PATH environment variable", () => {
+    const originalMmPath = process.env.MM_PATH;
+    try {
+      delete process.env.MM_PATH;
+      assert.equal(resolveMmPath(), "mm");
+
+      process.env.MM_PATH = "/custom/path/to/mm";
+      assert.equal(resolveMmPath(), "/custom/path/to/mm");
+    } finally {
+      if (originalMmPath !== undefined) {
+        process.env.MM_PATH = originalMmPath;
+      } else {
+        delete process.env.MM_PATH;
+      }
+    }
+  });
+
+  it("buildArgs produces correct CLI arguments for all 9 MCP tools", () => {
+    const toolMap = new Map(TOOLS.map((t) => [t.name, t]));
+    assert.equal(toolMap.size, 9);
+
+    // 1. monad_pay
+    const payTool = toolMap.get("monad_pay")!;
+    assert.deepEqual(
+      payTool.buildArgs({
+        to: "0x1234567890123456789012345678901234567890",
+        amount: "1.5",
+        token: "MON",
+        memo: "Test memo",
+        chainId: 10143,
+      }),
+      [
+        "--to",
+        "0x1234567890123456789012345678901234567890",
+        "--amount",
+        "1.5",
+        "--token",
+        "MON",
+        "--chain-id",
+        "10143",
+        "--memo",
+        "Test memo",
+      ]
+    );
+
+    // 2. monad_identity_register
+    const regTool = toolMap.get("monad_identity_register")!;
+    assert.deepEqual(
+      regTool.buildArgs({
+        name: "Bot",
+        description: "Bot desc",
+        walletAddress: "0x1234567890123456789012345678901234567890",
+        endpoint: "https://bot.xyz",
+        chainId: 143,
+      }),
+      [
+        "--name",
+        "Bot",
+        "--description",
+        "Bot desc",
+        "--walletAddress",
+        "0x1234567890123456789012345678901234567890",
+        "--chain-id",
+        "143",
+        "--endpoint",
+        "https://bot.xyz",
+      ]
+    );
+
+    // 3. monad_identity_get
+    const getTool = toolMap.get("monad_identity_get")!;
+    assert.deepEqual(getTool.buildArgs({ agentId: "42", chainId: 10143 }), [
+      "42",
+      "--chain-id",
+      "10143",
+    ]);
+
+    // 4. monad_reputation_check
+    const repCheckTool = toolMap.get("monad_reputation_check")!;
+    assert.deepEqual(
+      repCheckTool.buildArgs({ agentId: "42", tag1: "speed", tag2: "accuracy", chainId: 143 }),
+      ["42", "--chain-id", "143", "--tag1", "speed", "--tag2", "accuracy"]
+    );
+
+    // 5. monad_reputation_give
+    const repGiveTool = toolMap.get("monad_reputation_give")!;
+    assert.deepEqual(
+      repGiveTool.buildArgs({
+        agentId: "42",
+        value: 90,
+        decimals: 0,
+        tag1: "speed",
+        tag2: "task",
+        endpoint: "https://api.xyz",
+        feedbackURI: "ipfs://review",
+        chainId: 143,
+      }),
+      [
+        "--agentId",
+        "42",
+        "--value",
+        "90",
+        "--chain-id",
+        "143",
+        "--decimals",
+        "0",
+        "--tag1",
+        "speed",
+        "--tag2",
+        "task",
+        "--endpoint",
+        "https://api.xyz",
+        "--feedbackURI",
+        "ipfs://review",
+      ]
+    );
+
+    // 6. monad_x402_pay
+    const x402Tool = toolMap.get("monad_x402_pay")!;
+    assert.deepEqual(
+      x402Tool.buildArgs({
+        url: "https://api.xyz/paid",
+        payer: "0x1234567890123456789012345678901234567890",
+        method: "POST",
+        body: '{"query": "data"}',
+        maxSpend: "500000",
+        chainId: 10143,
+      }),
+      [
+        "--url",
+        "https://api.xyz/paid",
+        "--payer",
+        "0x1234567890123456789012345678901234567890",
+        "--chain-id",
+        "10143",
+        "--method",
+        "POST",
+        "--body",
+        '{"query": "data"}',
+        "--maxSpend",
+        "500000",
+      ]
+    );
+
+    // 7. monad_jobs_create
+    const jobCreateTool = toolMap.get("monad_jobs_create")!;
+    assert.deepEqual(
+      jobCreateTool.buildArgs({
+        workerAddress: "0x1234567890123456789012345678901234567890",
+        bountyMon: "0.5",
+        taskDescription: "Do task",
+        deadlineHours: 12,
+        chainId: 10143,
+      }),
+      [
+        "--workerAddress",
+        "0x1234567890123456789012345678901234567890",
+        "--bountyMon",
+        "0.5",
+        "--taskDescription",
+        "Do task",
+        "--chain-id",
+        "10143",
+        "--deadlineHours",
+        "12",
+      ]
+    );
+
+    // 8. monad_jobs_complete
+    const jobCompleteTool = toolMap.get("monad_jobs_complete")!;
+    assert.deepEqual(
+      jobCompleteTool.buildArgs({
+        jobId: "7",
+        resultURI: "ipfs://proof",
+        chainId: 10143,
+      }),
+      ["7", "--chain-id", "10143", "--resultURI", "ipfs://proof"]
+    );
+
+    // 9. monad_jobs_refund
+    const jobRefundTool = toolMap.get("monad_jobs_refund")!;
+    assert.deepEqual(
+      jobRefundTool.buildArgs({
+        jobId: "7",
+        chainId: 10143,
+      }),
+      ["7", "--chain-id", "10143"]
+    );
+  });
+
   it("prevents shell injection: command runs without shell and sends literal arguments", async () => {
     // Stub records the exact raw arguments passed to argv
     const { dir, scriptPath } = createStubScript(`
@@ -442,7 +632,7 @@ describe("@zakyirsyaad/monagent-mcp: MCP Server & Tools integration", () => {
     assert.match(response.content[0].text, /Must be a valid 40-character hexadecimal EVM address/);
   });
 
-  it("opt-in smoke test: calls real mm CLI if available for monad_identity_get", async () => {
+  it("opt-in smoke test: calls real mm CLI if available for monad_identity_get", { skip: !process.env.RUN_LIVE_SMOKE }, async () => {
     let hasRealMm = false;
     try {
       await verifyMmEnvironment();
@@ -452,7 +642,6 @@ describe("@zakyirsyaad/monagent-mcp: MCP Server & Tools integration", () => {
     }
 
     if (!hasRealMm) {
-      // Skip if real mm is not installed / configured
       return;
     }
 
