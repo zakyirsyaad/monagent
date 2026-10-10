@@ -9,7 +9,7 @@ mainnet — nothing is sent without the user's explicit yes.
 
 1. **Vet** — `mm monad identity get <agentId> --chain-id 143 --json` (the recipient's wallet is in
    the result) and `mm monad reputation check <agentId> --chain-id 143 --json`; apply the tier rule:
-   `LOW` stop; `UNRATED` and `MEDIUM` ask the user.
+   `LOW` or `UNKNOWN` stop; `UNRATED` and `MEDIUM` ask the user.
 2. **Confirm** — state the chain `143`, recipient wallet address, amount and token, and wait for an
    explicit yes.
 3. **Pay** — `mm monad pay --to <agent wallet> --amount <amount> --token <token> --chain-id 143 --json`.

@@ -232,3 +232,23 @@ export const monadRefundJobSchema = z.object({
   chainId: z.string().optional(),
 });
 export type MonadRefundJob = z.infer<typeof monadRefundJobSchema>;
+
+export const monadX402PaySchema = z.object({
+  url: z.string().min(1, "URL is required"),
+  method: z.enum(["GET", "POST"]).default("GET"),
+  body: z.string().optional(),
+  maxSpend: z
+    .string()
+    .regex(/^\d+$/, "maxSpend must be integer base units")
+    .optional()
+    .default("1000000"),
+  payer: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid EVM address")
+    .refine((val) => val.toLowerCase() !== "0x0000000000000000000000000000000000000000", {
+      message: "Non-zero address required",
+    }),
+  chainId: z.union([z.number(), z.string()]).optional(),
+});
+export type MonadX402PayInput = z.infer<typeof monadX402PaySchema>;
+

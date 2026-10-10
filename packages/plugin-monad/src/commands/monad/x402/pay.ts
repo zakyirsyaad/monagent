@@ -1,12 +1,9 @@
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { recoverTypedDataAddress } from "viem";
+import { isAddress, recoverTypedDataAddress } from "viem";
 import {
   resolveChain,
-  MONAD_TESTNET_CAIP2,
-  MONAD_MAINNET_CAIP2,
-  MONAD_TESTNET_USDC,
-  MONAD_MAINNET_USDC,
+  monadX402PaySchema,
 } from "../../../monad.js";
 import {
   BaseMonadPluginCommand,
@@ -16,11 +13,13 @@ import {
   type InputSchema,
   executeSignTypedData,
 } from "../../../sdk.js";
+import { safeFetch } from "../../../ssrf.js";
 import { PluginCommand } from "@metamask/agent-wallet/plugin";
 
 export interface X402PayResult {
   url: string;
   statusCode: number;
+  httpOk: boolean;
   response: string;
   paymentSettled: boolean;
   paymentDetails?: {
@@ -86,47 +85,45 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
 
   async execute(io: CommandIO): Promise<X402PayResult> {
     const rawInputs = await io.resolveInputs(MonadX402PayCommand.inputs);
-    const url = String(rawInputs.url).trim();
-    const method = (rawInputs.method || "GET").toUpperCase();
-    const body = rawInputs.body;
-    const maxSpend = BigInt(rawInputs.maxSpend || "1000000");
-    const rawPayer = String(rawInputs.payer || "").trim();
 
-    if (!/^0x[a-fA-F0-9]{40}$/.test(rawPayer) || rawPayer.toLowerCase() === "0x0000000000000000000000000000000000000000") {
+    const parsed = monadX402PaySchema.safeParse(rawInputs);
+    if (!parsed.success) {
       throw new CommandError(
         "INVALID_INPUT",
-        `Invalid or missing --payer address "${rawPayer}". A non-zero EVM address is required.`,
-        "Provide your agent wallet address using --payer 0x..."
+        `Invalid x402 payment input: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        "Provide a valid HTTPS URL, valid non-zero payer address, and numeric maxSpend."
       );
     }
+
+    const { url, method, body, maxSpend: maxSpendStr, payer: rawPayer } = parsed.data;
+    const maxSpend = BigInt(maxSpendStr);
     const payerAddress = rawPayer as `0x${string}`;
 
     io.emit(`Executing request to paid API: ${url}...`);
 
-    let initialRes: Response;
-    try {
-      initialRes = await fetch(url, {
-        method,
-        headers: {
-          Accept: "application/json",
-          ...(body ? { "Content-Type": "application/json" } : {}),
-        },
-        body: method === "POST" && body ? body : undefined,
-      });
-    } catch (err: any) {
-      throw new CommandError(
-        "FETCH_FAILED",
-        `Failed to reach target URL: ${err?.message || String(err)}`,
-        "Verify endpoint URL and network connectivity."
-      );
-    }
+    const lookupFn = (this.ctx as any)?.dnsLookup;
+    const fetchFn = (this.ctx as any)?.fetchFn;
+
+    const initialRes = await safeFetch(url, {
+      method,
+      headers: {
+        Accept: "application/json",
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: method === "POST" && body ? body : undefined,
+      lookup: lookupFn,
+      fetchFn,
+    });
 
     if (initialRes.status !== 402) {
       const text = await initialRes.text();
+      const MAX_BODY_LEN = 8192;
+      const capped = text.length > MAX_BODY_LEN ? text.slice(0, MAX_BODY_LEN) + "... [truncated]" : text;
       return {
         url,
         statusCode: initialRes.status,
-        response: text,
+        httpOk: initialRes.status >= 200 && initialRes.status < 300,
+        response: capped,
         paymentSettled: false,
       };
     }
@@ -187,6 +184,24 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       );
     }
 
+    // Asset Binding: Reject unless requirement.asset equals targetChain.usdc
+    if (!requirement.asset || requirement.asset.toLowerCase() !== targetChain.usdc.toLowerCase()) {
+      throw new CommandError(
+        "UNSUPPORTED_TOKEN",
+        `Payment requirement asset "${requirement.asset}" does not match canonical USDC on ${targetChain.name} (${targetChain.usdc}).`,
+        `Only canonical USDC is supported for x402 payments on ${targetChain.name}.`
+      );
+    }
+
+    // Validate payTo recipient address
+    if (!requirement.payTo || !isAddress(requirement.payTo) || requirement.payTo.toLowerCase() === "0x0000000000000000000000000000000000000000") {
+      throw new CommandError(
+        "INVALID_INPUT",
+        `Invalid payTo address in payment requirement: "${requirement.payTo}".`,
+        "Ensure payment requirement specifies a valid non-zero EVM address."
+      );
+    }
+
     const requestedAmount = BigInt(requirement.amount);
     if (requestedAmount > maxSpend) {
       throw new CommandError(
@@ -198,20 +213,19 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
 
     const resolvedChain = targetChain;
 
-    // Enrich extra domain info if server didn't include it for USDC
-    const isUsdc =
-      requirement.asset?.toLowerCase() === MONAD_TESTNET_USDC.toLowerCase() ||
-      requirement.asset?.toLowerCase() === MONAD_MAINNET_USDC.toLowerCase();
-
-    if (isUsdc && !requirement.extra) {
+    if (!requirement.extra) {
       requirement.extra = {
         name: "USDC",
         version: "2",
       };
     }
-    if (!requirement.maxTimeoutSeconds) {
-      requirement.maxTimeoutSeconds = 3600;
-    }
+
+    // Cap maxTimeoutSeconds to 300 seconds (5 minutes)
+    const requestedTimeout = Number(requirement.maxTimeoutSeconds);
+    requirement.maxTimeoutSeconds = Math.min(
+      Number.isFinite(requestedTimeout) && requestedTimeout > 0 ? requestedTimeout : 300,
+      300
+    );
 
     io.emit(
       `Negotiating x402 payment: ${requirement.amount} (${requirement.asset}) on ${resolvedChain.name} (${requirement.network}) to ${requirement.payTo}...`
@@ -258,39 +272,88 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
       );
     }
 
-    // Verify signer matches payerAddress using recoverTypedDataAddress. Abort on ANY error.
-    if (lastTypedData && lastSignature) {
-      try {
-        const recovered = await recoverTypedDataAddress({
-          domain: lastTypedData.domain,
-          types: lastTypedData.types,
-          primaryType: lastTypedData.primaryType,
-          message: lastTypedData.message,
-          signature: lastSignature,
-        });
+    // Fail-closed verification: lastTypedData and lastSignature MUST be present
+    if (!lastTypedData || !lastSignature) {
+      throw new CommandError(
+        "SIGNATURE_VERIFICATION_FAILED",
+        "x402 payment client failed to produce EIP-712 typed data or signature.",
+        "Ensure wallet is unlocked and approved to sign EIP-712 payment authorization."
+      );
+    }
 
-        if (recovered.toLowerCase() !== payerAddress.toLowerCase()) {
-          throw new CommandError(
-            "PAYER_MISMATCH",
-            `Recovered signature address ${recovered} does not match specified --payer ${payerAddress}.`,
-            "Ensure the active wallet in MetaMask matches --payer."
-          );
-        }
-      } catch (err: any) {
-        if (err instanceof CommandError) throw err;
+    // Assert that the signed typed-data matches the validated requirement exactly
+    const signedChainId = Number(lastTypedData.domain?.chainId);
+    if (signedChainId !== resolvedChain.chainId) {
+      throw new CommandError(
+        "SIGNATURE_VERIFICATION_FAILED",
+        `Signed authorization chainId (${signedChainId}) does not match target chainId (${resolvedChain.chainId}).`,
+        "Ensure payment authorization signs for the target network."
+      );
+    }
+
+    const signedVerifyingContract = String(lastTypedData.domain?.verifyingContract || "").toLowerCase();
+    if (signedVerifyingContract !== resolvedChain.usdc.toLowerCase()) {
+      throw new CommandError(
+        "SIGNATURE_VERIFICATION_FAILED",
+        `Signed verifyingContract (${signedVerifyingContract}) does not match canonical USDC (${resolvedChain.usdc.toLowerCase()}).`,
+        "Ensure payment authorization is bound to canonical USDC."
+      );
+    }
+
+    const signedValue =
+      lastTypedData.message?.value !== undefined
+        ? BigInt(lastTypedData.message.value)
+        : (lastTypedData.message?.amount !== undefined ? BigInt(lastTypedData.message.amount) : null);
+    if (signedValue === null || signedValue !== requestedAmount) {
+      throw new CommandError(
+        "SIGNATURE_VERIFICATION_FAILED",
+        `Signed authorization amount (${signedValue}) does not match requirement amount (${requestedAmount}).`,
+        "Ensure payment authorization signs the exact requested amount."
+      );
+    }
+
+    const signedRecipient = String(
+      lastTypedData.message?.to || lastTypedData.message?.payTo || lastTypedData.message?.recipient || ""
+    ).toLowerCase();
+    if (signedRecipient !== requirement.payTo.toLowerCase()) {
+      throw new CommandError(
+        "SIGNATURE_VERIFICATION_FAILED",
+        `Signed authorization recipient (${signedRecipient}) does not match requirement payTo (${requirement.payTo.toLowerCase()}).`,
+        "Ensure payment authorization signs the exact recipient."
+      );
+    }
+
+    // Verify signer matches payerAddress using recoverTypedDataAddress.
+    try {
+      const recovered = await recoverTypedDataAddress({
+        domain: lastTypedData.domain,
+        types: lastTypedData.types,
+        primaryType: lastTypedData.primaryType,
+        message: lastTypedData.message,
+        signature: lastSignature,
+      });
+
+      if (recovered.toLowerCase() !== payerAddress.toLowerCase()) {
         throw new CommandError(
-          "SIGNATURE_VERIFICATION_FAILED",
-          `Failed to verify EIP-712 payment signature: ${err?.message || String(err)}`,
-          "Verify that the wallet produced a valid EIP-712 signature."
+          "PAYER_MISMATCH",
+          `Recovered signature address ${recovered} does not match specified --payer ${payerAddress}.`,
+          "Ensure the active wallet in MetaMask matches --payer."
         );
       }
+    } catch (err: any) {
+      if (err instanceof CommandError) throw err;
+      throw new CommandError(
+        "SIGNATURE_VERIFICATION_FAILED",
+        `Failed to verify EIP-712 payment signature: ${err?.message || String(err)}`,
+        "Verify that the wallet produced a valid EIP-712 signature."
+      );
     }
 
     const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
 
     io.emit("x402 Payment authorization signed. Re-submitting request with payment proof...");
 
-    const paidRes = await fetch(url, {
+    const paidRes = await safeFetch(url, {
       method,
       headers: {
         Accept: "application/json",
@@ -298,15 +361,32 @@ export class MonadX402PayCommand extends BaseMonadPluginCommand<X402PayResult> {
         ...paymentHeaders,
       },
       body: method === "POST" && body ? body : undefined,
+      lookup: lookupFn,
+      fetchFn,
     });
 
-    const responseText = await paidRes.text();
+    const rawResponseText = await paidRes.text();
+    const MAX_RESPONSE_LEN = 8192;
+    const responseText =
+      rawResponseText.length > MAX_RESPONSE_LEN
+        ? rawResponseText.slice(0, MAX_RESPONSE_LEN) + "... [truncated]"
+        : rawResponseText;
+
+    const paymentResponseHeader =
+      paidRes.headers.get("PAYMENT-RESPONSE") ||
+      paidRes.headers.get("payment-response") ||
+      paidRes.headers.get("X-PAYMENT-RESPONSE") ||
+      paidRes.headers.get("x-payment-response");
+
+    const httpOk = paidRes.status >= 200 && paidRes.status < 300;
+    const paymentSettled = httpOk && Boolean(paymentResponseHeader);
 
     return {
       url,
       statusCode: paidRes.status,
+      httpOk,
       response: responseText,
-      paymentSettled: paidRes.status >= 200 && paidRes.status < 300,
+      paymentSettled,
       paymentDetails: {
         scheme: requirement.scheme,
         network: requirement.network,

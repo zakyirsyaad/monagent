@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-typecheck:
+    name: Node.js 22 Tests & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Foundry Toolchain
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build contracts (Foundry)
+        run: cd contracts && forge build
+
+      - name: Run Foundry unit & fuzz tests
+        run: cd contracts && forge test
+
+      - name: Build workspaces
+        run: npm run build
+
+      - name: Fail on generated-file drift
+        run: |
+          git diff --exit-code -- \
+            claude-plugin/skills \
+            packages/plugin-monad/skills \
+            packages/plugin-monad/oclif.manifest.json \
+            || { echo "::error::Generated files are out of sync with their sources. Run 'npm run build' and commit the result."; exit 1; }
+
+      - name: Typecheck monorepo
+        run: npm run typecheck
+
+      - name: Run full test suite (workspaces, scripts, simulation)
+        run: npm test
+        env:
+          REQUIRE_CONTRACT_ARTIFACTS: "1"

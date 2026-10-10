@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
@@ -11,11 +11,18 @@ interface ForgeArtifact {
 describe("Monad Smart Contracts Artifacts & ABI Verification", () => {
   const rootDir = process.cwd();
 
-  it("verifies MonadAgentRegistry compilation artifact", () => {
+  it("verifies MonadAgentRegistry compilation artifact", (t) => {
     const artifactPath = join(
       rootDir,
       "contracts/out/MonadAgentRegistry.sol/MonadAgentRegistry.json"
     );
+    if (!existsSync(artifactPath)) {
+      if (process.env.REQUIRE_CONTRACT_ARTIFACTS === "1") {
+        assert.fail("contracts/out missing but REQUIRE_CONTRACT_ARTIFACTS=1 — run `(cd contracts && forge build)`");
+      }
+      t.skip("contracts/out not found; run `(cd contracts && forge build)` to compile");
+      return;
+    }
     const content = JSON.parse(readFileSync(artifactPath, "utf8")) as ForgeArtifact;
 
     assert.ok(content.bytecode.object.length > 100, "Bytecode should be generated");
@@ -30,11 +37,18 @@ describe("Monad Smart Contracts Artifacts & ABI Verification", () => {
     assert.ok(functionNames.includes("getAgent"), "Should export getAgent");
   });
 
-  it("verifies MonadA2AEscrow compilation artifact", () => {
+  it("verifies MonadA2AEscrow compilation artifact", (t) => {
     const artifactPath = join(
       rootDir,
       "contracts/out/MonadA2AEscrow.sol/MonadA2AEscrow.json"
     );
+    if (!existsSync(artifactPath)) {
+      if (process.env.REQUIRE_CONTRACT_ARTIFACTS === "1") {
+        assert.fail("contracts/out missing but REQUIRE_CONTRACT_ARTIFACTS=1 — run `(cd contracts && forge build)`");
+      }
+      t.skip("contracts/out not found; run `(cd contracts && forge build)` to compile");
+      return;
+    }
     const content = JSON.parse(readFileSync(artifactPath, "utf8")) as ForgeArtifact;
 
     assert.ok(content.bytecode.object.length > 100, "Bytecode should be generated");
