@@ -250,7 +250,11 @@ export const TOOLS: ToolDefinition[] = [
       destructiveHint: true,
     },
     schema: z.object({
-      url: z.string().url().describe("HTTP 402 paid endpoint URL"),
+      url: z
+        .string()
+        .url()
+        .refine((u) => u.startsWith("https://"), { message: "Only HTTPS URLs are permitted" })
+        .describe("HTTP 402 paid endpoint URL (must use https://)"),
       method: z.enum(["GET", "POST"]).optional().default("GET").describe("HTTP method (GET or POST)"),
       body: z.string().optional().describe("Request payload body for POST requests"),
       maxSpend: z
@@ -278,7 +282,7 @@ export const TOOLS: ToolDefinition[] = [
       return args;
     },
     formatSummary: (data) => {
-      return `x402 request completed with HTTP status ${data?.statusCode}.\nPayment Settled: ${data?.paymentSettled}\nAmount: ${data?.paymentDetails?.amount} on ${data?.paymentDetails?.network}\nResponse:\n${typeof data?.response === "string" ? data.response : JSON.stringify(data?.response, null, 2)}`;
+      return `x402 request completed with HTTP status ${data?.statusCode}.\nHTTP OK: ${data?.httpOk ?? (data?.statusCode >= 200 && data?.statusCode < 300)}\nPayment Settled: ${data?.paymentSettled}\nAmount: ${data?.paymentDetails?.amount} on ${data?.paymentDetails?.network}\nResponse:\n${typeof data?.response === "string" ? data.response : JSON.stringify(data?.response, null, 2)}`;
     },
   },
 
