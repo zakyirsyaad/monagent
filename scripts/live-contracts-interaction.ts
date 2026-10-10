@@ -1,14 +1,12 @@
 /**
- * Live Monad Testnet On-Chain Transactions
+ * [HISTORICAL TEST SCRIPT - DEPLOYED STANDALONE CONTRACT HARNESS]
  *
- * Interacts directly with the verified deployed contracts:
- * 1. MonadAgentRegistry (0x3a933f9d5e2ee210c9690c803c4d24cd6dd28e51)
- *    - registerAgent()
- *    - giveFeedback()
- *    - read on-chain summary via getSummary()
- * 2. MonadA2AEscrow (0x31665c49a8e0565f3e496080a08f089d29bbcaae)
- *    - createAndFundJob()
- *    - completeJob()
+ * Note: The production MonAgent plugin (@zakyirsyaad/monagent-plugin) interacts with the
+ * official ERC-8004 Identity and Reputation Registries on Monad (EIP-8004 standards).
+ *
+ * This test harness interacts directly with the standalone custom contracts:
+ * 1. MonadAgentRegistry (0x91f80eb44d9082d8881b116696cd8840680e3a1c)
+ * 2. MonadA2AEscrow (0x8dcab9ddf394eb29cb891b264627bf60ea6af6ff)
  *
  * Run: npx tsx scripts/live-contracts-interaction.ts
  */

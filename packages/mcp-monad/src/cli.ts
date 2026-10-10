@@ -45,7 +45,6 @@ export function getSafeEnv(): NodeJS.ProcessEnv {
     "PATH",
     "HOME",
     "MM_CONFIG_DIR",
-    "MM_PASSWORD",
   ];
   const safeEnv: NodeJS.ProcessEnv = {};
   for (const key of allowedKeys) {
@@ -53,6 +52,15 @@ export function getSafeEnv(): NodeJS.ProcessEnv {
       safeEnv[key] = process.env[key];
     }
   }
+
+  // Only forward MM_PASSWORD if explicitly opted in via MONAGENT_MCP_ALLOW_BYOK_PASSWORD=1
+  if (
+    process.env.MONAGENT_MCP_ALLOW_BYOK_PASSWORD === "1" &&
+    process.env.MM_PASSWORD !== undefined
+  ) {
+    safeEnv.MM_PASSWORD = process.env.MM_PASSWORD;
+  }
+
   return safeEnv;
 }
 
