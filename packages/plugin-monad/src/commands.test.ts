@@ -1413,5 +1413,180 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
     }
 >>>>>>> d92988a (fix(x402): harden pay command against SSRF and bind signed authorizations)
   });
+
+  it("Issue #21: identity:get parses percent-encoded data URI", async () => {
+    const rawCard = JSON.stringify({
+      name: "PercentBot",
+      description: "Encoded agent card",
+      endpoint: "https://bot.xyz",
+    });
+    const percentUri = `data:application/json,${encodeURIComponent(rawCard)}`;
+
+    const cmd = new MonadIdentityGetCommand();
+    const ctx = createMockContext({
+      contractReads: {
+        tokenURI: percentUri,
+      },
+    });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({ agentId: "5", chainId: "143" });
+    const res = await cmd.execute(io);
+    assert.equal(res.card?.name, "PercentBot");
+    assert.equal(res.card?.description, "Encoded agent card");
+    assert.equal(res.card?.endpoints[0], "https://bot.xyz");
+    assert.equal(res.cardUri, percentUri);
+    assert.equal(res.cardParseError, undefined);
+  });
+
+  it("Issue #21: identity:get parses raw JSON string tokenURI", async () => {
+    const rawJsonUri = JSON.stringify({
+      name: "RawJsonBot",
+      description: "Raw string card",
+      services: [{ name: "A2A", endpoint: "https://raw.xyz/api" }],
+    });
+
+    const cmd = new MonadIdentityGetCommand();
+    const ctx = createMockContext({
+      contractReads: {
+        tokenURI: rawJsonUri,
+      },
+    });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({ agentId: "6", chainId: "143" });
+    const res = await cmd.execute(io);
+    assert.equal(res.card?.name, "RawJsonBot");
+    assert.equal(res.card?.endpoints[0], "https://raw.xyz/api");
+    assert.equal(res.cardParseError, undefined);
+  });
+
+  it("Issue #21: identity:get resolves and parses https:// tokenURI", async () => {
+    const originalFetch = globalThis.fetch;
+    const httpsCardUri = "https://example.com/agent-card.json";
+
+    globalThis.fetch = async (url: any) => {
+      assert.equal(url, httpsCardUri);
+      return new Response(
+        JSON.stringify({
+          name: "RailwayAgent",
+          description: "Hosted agent on railway",
+          endpoints: ["https://example.com/api"],
+          supportedProtocols: ["mcp", "x402"],
+          active: true,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    };
+
+    try {
+      const cmd = new MonadIdentityGetCommand();
+      const ctx = createMockContext({
+        contractReads: {
+          tokenURI: httpsCardUri,
+        },
+      });
+      (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+      const io = createMockIO({ agentId: "2", chainId: "143" });
+      const res = await cmd.execute(io);
+      assert.equal(res.card?.name, "RailwayAgent");
+      assert.equal(res.card?.description, "Hosted agent on railway");
+      assert.equal(res.card?.endpoints[0], "https://example.com/api");
+      assert.equal(res.cardUri, httpsCardUri);
+      assert.equal(res.cardParseError, undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #21: identity:get resolves and parses ipfs:// tokenURI via gateway", async () => {
+    const originalFetch = globalThis.fetch;
+    const ipfsUri = "ipfs://QmSMK4nbrPqC6MpPqaBWPpbNpnLgnSEBWf1vv8UEnaSTv5";
+
+    globalThis.fetch = async (url: any) => {
+      assert.ok(String(url).includes("QmSMK4nbrPqC6MpPqaBWPpbNpnLgnSEBWf1vv8UEnaSTv5"));
+      return new Response(
+        JSON.stringify({
+          name: "IpfsAgent",
+          description: "Decentralized metadata agent",
+          endpoint: "https://ipfs-agent.xyz",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    };
+
+    try {
+      const cmd = new MonadIdentityGetCommand();
+      const ctx = createMockContext({
+        contractReads: {
+          tokenURI: ipfsUri,
+        },
+      });
+      (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+      const io = createMockIO({ agentId: "4", chainId: "143" });
+      const res = await cmd.execute(io);
+      assert.equal(res.card?.name, "IpfsAgent");
+      assert.equal(res.card?.description, "Decentralized metadata agent");
+      assert.equal(res.cardUri, ipfsUri);
+      assert.equal(res.cardParseError, undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #21: identity:get returns card: undefined and cardParseError on failed resolution/parse (no false active placeholder)", async () => {
+    const originalFetch = globalThis.fetch;
+    const brokenUri = "https://example.com/broken-card.json";
+
+    globalThis.fetch = async () => {
+      return new Response("Not Found", { status: 404, statusText: "Not Found" });
+    };
+
+    try {
+      const cmd = new MonadIdentityGetCommand();
+      const ctx = createMockContext({
+        contractReads: {
+          tokenURI: brokenUri,
+        },
+      });
+      (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+      const io = createMockIO({ agentId: "7", chainId: "143" });
+      const res = await cmd.execute(io);
+      assert.equal(res.card, undefined, "Must NOT fabricate a placeholder card on parse/fetch failure");
+      assert.equal(res.cardUri, brokenUri);
+      assert.ok(res.cardParseError, "Must include cardParseError reason");
+      assert.ok(io.logs.some((l: string) => l.includes("Card unreadable")));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("Issue #21: identity:get always enforces on-chain getAgentWallet over JSON card walletAddress", async () => {
+    const hostileWalletCard = JSON.stringify({
+      name: "SpoofBot",
+      walletAddress: "0x6666666666666666666666666666666666666666", // Hostile spoofed address in JSON
+    });
+
+    const cmd = new MonadIdentityGetCommand();
+    const ctx = createMockContext({
+      contractReads: {
+        tokenURI: hostileWalletCard,
+        getAgentWallet: "0x8888888888888888888888888888888888888888", // Real on-chain wallet
+      },
+    });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({ agentId: "8", chainId: "143" });
+    const res = await cmd.execute(io);
+    assert.equal(res.card?.name, "SpoofBot");
+    assert.equal(
+      res.card?.walletAddress,
+      "0x8888888888888888888888888888888888888888",
+      "card.walletAddress must match on-chain getAgentWallet, never untrusted JSON"
+    );
+  });
 });
 

@@ -10,6 +10,7 @@ import {
   InputFieldType,
   type InputSchema,
 } from "../../../sdk.js";
+import { resolveAgentCard } from "../../../card-resolver.js";
 import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
 export interface GetIdentityResult {
@@ -17,6 +18,8 @@ export interface GetIdentityResult {
   owner: string;
   walletAddress: string;
   card?: MonadAgentCard;
+  cardUri?: string;
+  cardParseError?: string;
   chainId: number;
 }
 
@@ -97,53 +100,31 @@ export class MonadIdentityGetCommand extends BaseMonadPluginCommand<GetIdentityR
       );
     }
 
-    let card: MonadAgentCard | undefined;
-    try {
-      let jsonString: string = "";
-      if (tokenUri.startsWith("data:application/json;base64,")) {
-        const base64Data = tokenUri.slice("data:application/json;base64,".length);
-        jsonString = Buffer.from(base64Data, "base64").toString("utf-8");
-      } else if (tokenUri.startsWith("data:application/json;utf8,") || tokenUri.startsWith("data:application/json,")) {
-        const urlEncoded = tokenUri.replace(/^data:application\/json(;utf8)?,/, "");
-        jsonString = decodeURIComponent(urlEncoded);
-      } else if (tokenUri.startsWith("{")) {
-        jsonString = tokenUri;
-      }
-
-      if (jsonString) {
-        const parsedJson = JSON.parse(jsonString);
-        card = {
-          name: parsedJson.name || `Agent #${agentId}`,
-          description: parsedJson.description || "",
-          walletAddress: walletAddress,
-          endpoints: parsedJson.services?.map((s: any) => s.endpoint).filter(Boolean) || [
-            parsedJson.endpoint || "",
-          ],
-          supportedProtocols: parsedJson.supportedProtocols || ["mcp", "x402"],
-          active: parsedJson.active !== undefined ? Boolean(parsedJson.active) : true,
-        };
-      }
-    } catch {
-      // If parsing fails, create card with available contract data
-      card = {
-        name: `Agent #${agentId}`,
-        description: "",
-        walletAddress: walletAddress,
-        endpoints: [],
-        supportedProtocols: ["mcp", "x402"],
-        active: true,
-      };
-    }
-
-    io.emit(
-      `Agent #${agentId}: Owner: ${owner}, Wallet: ${walletAddress}, Name: ${card?.name || "N/A"}`
+    const lookupFn = (this.ctx as any)?.dnsLookup;
+    const { card, cardUri, cardParseError } = await resolveAgentCard(
+      tokenUri,
+      walletAddress,
+      agentId,
+      { lookup: lookupFn }
     );
+
+    let statusLine = `Agent #${agentId}: Owner: ${owner}, Wallet: ${walletAddress}`;
+    if (card?.name) {
+      statusLine += `, Name: ${card.name}`;
+    } else if (cardParseError) {
+      statusLine += `, Name: N/A (Card unreadable: ${cardParseError})`;
+    } else {
+      statusLine += `, Name: N/A`;
+    }
+    io.emit(statusLine);
 
     return {
       agentId,
       owner,
       walletAddress,
       card,
+      cardUri,
+      cardParseError,
       chainId: chain.chainId,
     };
   }
