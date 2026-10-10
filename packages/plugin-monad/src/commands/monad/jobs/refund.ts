@@ -11,6 +11,7 @@ import {
   InputFieldType,
   type InputSchema,
   executeTransaction,
+  awaitReceiptConfirmation,
 } from "../../../sdk.js";
 import { PluginCommand, schemaToArgs } from "@metamask/agent-wallet/plugin";
 
@@ -85,28 +86,14 @@ export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResu
     io.emit(`Escrow refund transaction submitted for Job #${jobId} on ${chain.name}, pending confirmation... TxHash: ${hash}`);
 
     const client = this.getPublicClient(chain.chainId);
-    let receipt: any = null;
-    let timedOut = false;
+    const { confirmed, status } = await awaitReceiptConfirmation(
+      client,
+      hash,
+      chain,
+      `Job #${jobId} escrow refund`
+    );
 
-    try {
-      receipt = await client.waitForTransactionReceipt({
-        hash,
-        timeout: 15_000,
-      });
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      if (
-        err?.name === "WaitForTransactionReceiptTimeoutError" ||
-        errMsg.toLowerCase().includes("timed out") ||
-        errMsg.toLowerCase().includes("timeout")
-      ) {
-        timedOut = true;
-      } else {
-        throw err;
-      }
-    }
-
-    if (timedOut || !receipt) {
+    if (!confirmed) {
       io.emit(`Escrow refund transaction submitted for Job #${jobId} on ${chain.name}, but confirmation timed out. Status: SUBMITTED (unconfirmed). TxHash: ${hash}`);
       io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
 
@@ -117,14 +104,6 @@ export class MonadJobsRefundCommand extends BaseMonadPluginCommand<RefundJobResu
         confirmed: false,
         status: "SUBMITTED",
       };
-    }
-
-    if (receipt.status === "reverted") {
-      throw new CommandError(
-        "TRANSACTION_REVERTED",
-        `Job #${jobId} escrow refund reverted on-chain: ${hash}. Explorer: ${chain.explorerUrl}/tx/${hash}`,
-        "Check transaction on Monad Explorer and verify job expiration and caller authorization."
-      );
     }
 
     io.emit(`Job #${jobId} escrow refunded on ${chain.name}! TxHash: ${hash}`);

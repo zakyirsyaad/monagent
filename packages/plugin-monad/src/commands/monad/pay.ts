@@ -10,6 +10,7 @@ import {
   InputFieldType,
   type InputSchema,
   executeTransaction,
+  awaitReceiptConfirmation,
 } from "../../sdk.js";
 import { PluginCommand } from "@metamask/agent-wallet/plugin";
 
@@ -172,28 +173,14 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
     io.emit(`Payment transaction submitted on ${chain.name}, pending confirmation... TxHash: ${hash}`);
 
     const client = this.getPublicClient(chain.chainId);
-    let receipt: any = null;
-    let timedOut = false;
+    const { confirmed, status } = await awaitReceiptConfirmation(
+      client,
+      hash,
+      chain,
+      "Payment transaction"
+    );
 
-    try {
-      receipt = await client.waitForTransactionReceipt({
-        hash,
-        timeout: 15_000,
-      });
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      if (
-        err?.name === "WaitForTransactionReceiptTimeoutError" ||
-        errMsg.toLowerCase().includes("timed out") ||
-        errMsg.toLowerCase().includes("timeout")
-      ) {
-        timedOut = true;
-      } else {
-        throw err;
-      }
-    }
-
-    if (timedOut || !receipt) {
+    if (!confirmed) {
       io.emit(`Payment transaction submitted on ${chain.name}, but confirmation timed out. Status: SUBMITTED (unconfirmed). TxHash: ${hash}`);
       io.emit(`Explorer: ${chain.explorerUrl}/tx/${hash}`);
 
@@ -207,14 +194,6 @@ export class MonadPayCommand extends BaseMonadPluginCommand<MonadPaymentResult> 
         confirmed: false,
         status: "SUBMITTED",
       };
-    }
-
-    if (receipt.status === "reverted") {
-      throw new CommandError(
-        "TRANSACTION_REVERTED",
-        `Payment transaction reverted on-chain: ${hash}. Explorer: ${chain.explorerUrl}/tx/${hash}`,
-        "Check transaction on Monad Explorer and verify token balances or transfer permissions."
-      );
     }
 
     io.emit(`Paid ${amount} ${tokenUpper === "MON" ? "MON" : token} to ${to} on ${chain.name}. TxHash: ${hash}`);
