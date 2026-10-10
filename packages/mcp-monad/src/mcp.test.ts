@@ -42,12 +42,17 @@ describe("@zakyirsyaad/monagent-mcp: CLI execution & safety", () => {
       assert.equal(safeEnv.AWS_SECRET_ACCESS_KEY, undefined);
       assert.equal(safeEnv.SHELL, undefined);
       assert.equal(safeEnv.USER, undefined);
-      assert.equal(safeEnv.MM_PASSWORD, "test_password");
+      assert.equal(safeEnv.MM_PASSWORD, undefined, "MM_PASSWORD must be omitted by default");
+
+      process.env.MONAGENT_MCP_ALLOW_BYOK_PASSWORD = "1";
+      const optInEnv = getSafeEnv();
+      assert.equal(optInEnv.MM_PASSWORD, "test_password", "MM_PASSWORD allowed with explicit opt-in");
     } finally {
       delete process.env.SECRET_KEY;
       delete process.env.AWS_SECRET_ACCESS_KEY;
       delete process.env.SHELL;
       delete process.env.USER;
+      delete process.env.MONAGENT_MCP_ALLOW_BYOK_PASSWORD;
       if (!originalEnv.MM_PASSWORD) delete process.env.MM_PASSWORD;
       if (originalEnv.SHELL) process.env.SHELL = originalEnv.SHELL;
       if (originalEnv.USER) process.env.USER = originalEnv.USER;
