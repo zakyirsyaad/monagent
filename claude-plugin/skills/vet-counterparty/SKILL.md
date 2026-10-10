@@ -1,6 +1,6 @@
 ---
 name: vet-counterparty
-description: Use when deciding whether a Monad agent (ERC-8004 agentId) is safe to pay or work with. Read-only vetting workflow — looks up the agent's identity and reputation on Monad and returns a trust verdict (HIGH, MEDIUM, LOW or UNRATED) with reasons. Works on mainnet 143 and testnet 10143; never sends a transaction.
+description: Use when deciding whether a Monad agent (ERC-8004 agentId) is safe to pay or work with. Read-only vetting workflow — looks up the agent's identity and reputation on Monad and returns a trust verdict (HIGH, MEDIUM, LOW, UNRATED or UNKNOWN) with reasons. Works on mainnet 143 and testnet 10143; never sends a transaction.
 ---
 
 # Vet a Monad counterparty (read-only)
@@ -30,6 +30,7 @@ fields and error codes are in the shared `monad-agent` skill.
    - `LOW` → recommend against paying this agent.
    - `UNRATED` → no feedback yet; ask the user how to proceed, and suggest a small first amount if
      they want to continue.
+   - `UNKNOWN` → vetting failed (reputation read failed or registry unavailable); recommend against paying this agent.
 
 ## Guardrails
 

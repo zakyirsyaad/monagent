@@ -77,7 +77,7 @@ mm monad reputation check <agentId> --tag1 speed --json
 mm monad reputation give --agentId <agentId> --value 90 --tag1 speed --tag2 task --chain-id 143 --json
 ```
 `check` returns `feedbackCount`, `averageScore` (-100…100) and `trustTier`: `HIGH` (≥80), `MEDIUM` (≥50),
-`LOW`, or `UNRATED` (no feedback). `give` takes `--value` from -100 to 100, plus optional `--decimals`,
+`LOW`, `UNRATED` (no feedback yet), or `UNKNOWN` (read failed). `give` takes `--value` from -100 to 100, plus optional `--decimals`,
 `--endpoint` and `--feedbackURI`.
 
 ### x402 paid API calls
@@ -117,6 +117,7 @@ mainnet `143`, with ERC-8004 reputation as the trust layer:
    - `MEDIUM` → tell the user the score, and continue only if they agree.
    - `LOW` → stop; recommend against paying this agent.
    - `UNRATED` → ask the user how to proceed (no feedback yet is not proof of bad behavior).
+   - `UNKNOWN` → stop; tell the user vetting failed (reputation read failed or registry unavailable); do not proceed to payment.
    Optionally also run `mm monad identity get <agentId> --chain-id 143 --json` to see who owns the
    agent and what it claims to do.
 2. **Confirm** — state the chain, recipient, amount and token, and wait for an explicit yes.
@@ -138,6 +139,7 @@ mainnet `143`, with ERC-8004 reputation as the trust layer:
 | `INVALID_TOKEN_CONTRACT` | No contract or no `decimals()` at the token address | Check the token address and chain |
 | `ESCROW_NOT_DEPLOYED` | Escrow used on a chain without the contract | Use `--chain-id 10143` |
 | `AGENT_NOT_FOUND` | Agent id doesn't exist on that chain | Check the id and `--chain-id` |
+| `REPUTATION_UNAVAILABLE` | Failed to read reputation from Monad registry (revert, timeout, or outage) | Tell the user vetting failed; do not send funds to unverified counterparties |
 | `TRANSACTION_FAILED` | The wallet didn't confirm the transaction (rejected, failed, missing hash) | Report to the user; check balance and approval |
 | `TRANSACTION_REVERTED` | Transaction was broadcast but reverted on-chain | Check the explorer link; verify balance, allowances, or contract authorization before retrying |
 | `RECEIPT_PARSING_FAILED` | Tx confirmed but the expected event wasn't found | Look up the tx hash on the explorer before retrying |

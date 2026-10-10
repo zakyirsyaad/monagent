@@ -1512,5 +1512,150 @@ describe("MetaMask Agent Wallet Plugin for Monad", () => {
       "card.walletAddress must match on-chain getAgentWallet, never untrusted JSON"
     );
   });
+
+  it("Issue #22: reputation:check evaluates exact boundaries [0n,0n,0] UNRATED, [10n,800n,0] HIGH, [10n,500n,0] MEDIUM, [10n,-500n,0] LOW", async () => {
+    const cmd = new MonadReputationCheckCommand();
+
+    // 1. [0n, 0n, 0] -> UNRATED
+    const ctxUnrated = createMockContext({
+      contractReads: {
+        getClients: ["0x1111111111111111111111111111111111111111"],
+        getSummary: [0n, 0n, 0],
+      },
+    });
+    (cmd as any).setContext?.(ctxUnrated) ?? Object.assign(cmd, { ctx: ctxUnrated });
+    const resUnrated = await cmd.execute(createMockIO({ agentId: "10" }));
+    assert.equal(resUnrated.feedbackCount, 0);
+    assert.equal(resUnrated.averageScore, 0);
+    assert.equal(resUnrated.trustTier, "UNRATED");
+    assert.equal(resUnrated.readFailed, false);
+
+    // 2. [10n, 800n, 0] -> HIGH (exact boundary 80)
+    const ctxHigh = createMockContext({
+      contractReads: {
+        getClients: ["0x1111111111111111111111111111111111111111"],
+        getSummary: [10n, 800n, 0],
+      },
+    });
+    (cmd as any).setContext?.(ctxHigh) ?? Object.assign(cmd, { ctx: ctxHigh });
+    const resHigh = await cmd.execute(createMockIO({ agentId: "11" }));
+    assert.equal(resHigh.feedbackCount, 10);
+    assert.equal(resHigh.averageScore, 80);
+    assert.equal(resHigh.trustTier, "HIGH");
+
+    // 3. [10n, 500n, 0] -> MEDIUM (exact boundary 50)
+    const ctxMedium = createMockContext({
+      contractReads: {
+        getClients: ["0x1111111111111111111111111111111111111111"],
+        getSummary: [10n, 500n, 0],
+      },
+    });
+    (cmd as any).setContext?.(ctxMedium) ?? Object.assign(cmd, { ctx: ctxMedium });
+    const resMedium = await cmd.execute(createMockIO({ agentId: "12" }));
+    assert.equal(resMedium.feedbackCount, 10);
+    assert.equal(resMedium.averageScore, 50);
+    assert.equal(resMedium.trustTier, "MEDIUM");
+
+    // 4. [10n, -500n, 0] -> LOW (negative score)
+    const ctxLow = createMockContext({
+      contractReads: {
+        getClients: ["0x1111111111111111111111111111111111111111"],
+        getSummary: [10n, -500n, 0],
+      },
+    });
+    (cmd as any).setContext?.(ctxLow) ?? Object.assign(cmd, { ctx: ctxLow });
+    const resLow = await cmd.execute(createMockIO({ agentId: "13" }));
+    assert.equal(resLow.feedbackCount, 10);
+    assert.equal(resLow.averageScore, -50);
+    assert.equal(resLow.trustTier, "LOW");
+  });
+
+  it("Issue #22: reputation:check calculates decimals !== 0 divider properly [10n, 9500n, 2] -> 9.5", async () => {
+    const cmd = new MonadReputationCheckCommand();
+    const ctx = createMockContext({
+      contractReads: {
+        getClients: ["0x1111111111111111111111111111111111111111"],
+        getSummary: [10n, 9500n, 2], // 9500 / (10 * 10^2) = 9.5
+      },
+    });
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const res = await cmd.execute(createMockIO({ agentId: "14" }));
+    assert.equal(res.feedbackCount, 10);
+    assert.equal(res.averageScore, 9.5);
+    assert.equal(res.trustTier, "LOW");
+  });
+
+  it("Issue #22: reputation:check yields UNKNOWN and readFailed: true when getClients reverts", async () => {
+    const cmd = new MonadReputationCheckCommand();
+    const ctx = createMockContext();
+    const client = ctx.publicClient(10143);
+    client.readContract = async ({ functionName }: { functionName: string }) => {
+      if (functionName === "getClients") {
+        throw new Error("RPC internal error: call reverted in getClients");
+      }
+      return null;
+    };
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({ agentId: "15" });
+    const res = await cmd.execute(io);
+    assert.equal(res.trustTier, "UNKNOWN");
+    assert.equal(res.readFailed, true);
+    assert.ok(res.readError?.includes("call reverted in getClients"));
+    assert.equal(res._notice?.code, "REPUTATION_UNAVAILABLE");
+    assert.ok(io.logs.some((l: string) => l.includes("REPUTATION_UNAVAILABLE")));
+  });
+
+  it("Issue #22: reputation:check yields UNKNOWN and readFailed: true when getSummary reverts", async () => {
+    const cmd = new MonadReputationCheckCommand();
+    const ctx = createMockContext();
+    const client = ctx.publicClient(10143);
+    client.readContract = async ({ functionName }: { functionName: string }) => {
+      if (functionName === "getClients") {
+        return ["0x1111111111111111111111111111111111111111"];
+      }
+      if (functionName === "getSummary") {
+        throw new Error("RPC timeout: getSummary failed");
+      }
+      return null;
+    };
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({ agentId: "16" });
+    const res = await cmd.execute(io);
+    assert.equal(res.trustTier, "UNKNOWN");
+    assert.equal(res.readFailed, true);
+    assert.ok(res.readError?.includes("getSummary failed"));
+    assert.equal(res._notice?.code, "REPUTATION_UNAVAILABLE");
+    assert.ok(io.logs.some((l: string) => l.includes("REPUTATION_UNAVAILABLE")));
+  });
+
+  it("Issue #22: reputation:check bounds getClients array to first 50 entries", async () => {
+    const cmd = new MonadReputationCheckCommand();
+    const ctx = createMockContext();
+    const manyClients = Array.from({ length: 120 }, (_, i) => `0x${i.toString(16).padStart(40, "0")}` as `0x${string}`);
+
+    let passedClientsCount = 0;
+    const client = ctx.publicClient(10143);
+    client.readContract = async ({ functionName, args }: { functionName: string; args?: any[] }) => {
+      if (functionName === "getClients") {
+        return manyClients;
+      }
+      if (functionName === "getSummary") {
+        passedClientsCount = args?.[1]?.length ?? 0;
+        return [BigInt(passedClientsCount), BigInt(passedClientsCount * 85), 0];
+      }
+      return null;
+    };
+    (cmd as any).setContext?.(ctx) ?? Object.assign(cmd, { ctx });
+
+    const io = createMockIO({ agentId: "17" });
+    const res = await cmd.execute(io);
+    assert.equal(passedClientsCount, 50, "Must bound query to at most 50 clients");
+    assert.ok(io.logs.some((l: string) => l.includes("bounding reputation query to first 50")));
+    assert.equal(res.readFailed, false);
+    assert.equal(res.trustTier, "HIGH");
+  });
 });
 

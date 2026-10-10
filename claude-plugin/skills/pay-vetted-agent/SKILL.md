@@ -13,7 +13,7 @@ the shared `monad-agent` skill.
 ## Procedure
 
 1. **Vet** — follow the `vet-counterparty` skill for the recipient's agentId and apply its decision
-   rule: `LOW` stop; `UNRATED` and `MEDIUM` ask the user. The recipient's wallet address comes from
+   rule: `LOW` or `UNKNOWN` stop; `UNRATED` and `MEDIUM` ask the user. The recipient's wallet address comes from
    `mm monad identity get <agentId> --chain-id 143 --json`.
 2. **Confirm** — state the chain (`143`), recipient address, amount and token, and wait for an
    explicit yes. No confirmation, no transaction.

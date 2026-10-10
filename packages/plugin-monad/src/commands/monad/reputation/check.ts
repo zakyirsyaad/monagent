@@ -15,7 +15,13 @@ export interface CheckReputationResult {
   agentId: string;
   feedbackCount: number;
   averageScore: number;
-  trustTier: "HIGH" | "MEDIUM" | "LOW" | "UNRATED";
+  trustTier: "HIGH" | "MEDIUM" | "LOW" | "UNRATED" | "UNKNOWN";
+  readFailed: boolean;
+  readError?: string;
+  _notice?: {
+    code: string;
+    message: string;
+  };
   chainId: number;
 }
 
@@ -77,8 +83,12 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
     const client = this.getPublicClient(chain.chainId);
     const tokenIdBigInt = BigInt(agentId);
 
-    // Official ERC-8004 requires clientAddresses array (reverts if empty without getClients)
+    const MAX_CLIENTS_TO_QUERY = 50;
     let clientsToQuery: `0x${string}`[] = [];
+    let readFailed = false;
+    let readError: string | undefined;
+
+    // Official ERC-8004 requires clientAddresses array (reverts if empty without getClients)
     try {
       const registeredClients = await client.readContract({
         address: chain.reputationRegistry,
@@ -87,16 +97,22 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
         args: [tokenIdBigInt],
       });
       if (registeredClients && Array.isArray(registeredClients)) {
-        clientsToQuery = registeredClients as `0x${string}`[];
+        if (registeredClients.length > MAX_CLIENTS_TO_QUERY) {
+          io.emit(
+            `Agent #${agentId} has ${registeredClients.length} clients; bounding reputation query to first ${MAX_CLIENTS_TO_QUERY}.`
+          );
+        }
+        clientsToQuery = registeredClients.slice(0, MAX_CLIENTS_TO_QUERY) as `0x${string}`[];
       }
-    } catch {
-      // Contract might have no clients or call failed
+    } catch (err: any) {
+      readFailed = true;
+      readError = `Failed to query registered clients from registry: ${err?.message || String(err)}`;
     }
 
     let feedbackCount = 0;
     let averageScore = 0;
 
-    if (clientsToQuery.length > 0) {
+    if (!readFailed && clientsToQuery.length > 0) {
       try {
         const [count, summaryValue, decimals] = await client.readContract({
           address: chain.reputationRegistry,
@@ -109,27 +125,49 @@ export class MonadReputationCheckCommand extends BaseMonadPluginCommand<CheckRep
         const scoreDivider = 10 ** decimals;
         averageScore =
           feedbackCount > 0 ? Number(summaryValue) / (feedbackCount * scoreDivider) : 0;
-      } catch {
-        // Fallback to unrated if getSummary reverts
+      } catch (err: any) {
+        readFailed = true;
+        readError = `Failed to query reputation summary from registry: ${err?.message || String(err)}`;
       }
     }
 
-    let trustTier: "HIGH" | "MEDIUM" | "LOW" | "UNRATED" = "UNRATED";
-    if (feedbackCount > 0) {
-      if (averageScore >= 80) trustTier = "HIGH";
-      else if (averageScore >= 50) trustTier = "MEDIUM";
-      else trustTier = "LOW";
-    }
+    let trustTier: "HIGH" | "MEDIUM" | "LOW" | "UNRATED" | "UNKNOWN" = "UNRATED";
+    let notice: { code: string; message: string } | undefined;
 
-    io.emit(
-      `Agent #${agentId} Reputation on ${chain.name}: ${feedbackCount} reviews, Average: ${averageScore.toFixed(1)}, Trust Tier: ${trustTier}`
-    );
+    if (readFailed) {
+      trustTier = "UNKNOWN";
+      notice = {
+        code: "REPUTATION_UNAVAILABLE",
+        message: readError || "Reputation registry read failed",
+      };
+      io.emit(
+        `WARN: REPUTATION_UNAVAILABLE: Failed to inspect reputation for Agent #${agentId} on ${chain.name}: ${readError}`
+      );
+      io.emit(
+        `Agent #${agentId} Reputation on ${chain.name}: UNKNOWN (Read failed: ${readError})`
+      );
+    } else {
+      if (feedbackCount > 0) {
+        if (averageScore >= 80) trustTier = "HIGH";
+        else if (averageScore >= 50) trustTier = "MEDIUM";
+        else trustTier = "LOW";
+      } else {
+        trustTier = "UNRATED";
+      }
+
+      io.emit(
+        `Agent #${agentId} Reputation on ${chain.name}: ${feedbackCount} reviews, Average: ${averageScore.toFixed(1)}, Trust Tier: ${trustTier}`
+      );
+    }
 
     return {
       agentId,
       feedbackCount,
       averageScore,
       trustTier,
+      readFailed,
+      ...(readError ? { readError } : {}),
+      ...(notice ? { _notice: notice } : {}),
       chainId: chain.chainId,
     };
   }
