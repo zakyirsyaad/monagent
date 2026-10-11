@@ -1,6 +1,6 @@
 {
   "name": "@zakyirsyaad/monagent-mcp",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Model Context Protocol (MCP) server for Monad Agent Wallet (MetaMask mm CLI wrapper)",
   "type": "module",
   "keywords": [
