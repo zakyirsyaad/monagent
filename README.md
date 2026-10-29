@@ -7,8 +7,8 @@
 ![Monad](https://img.shields.io/badge/Monad-143%20%7C%2010143-6E54FF)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
-MonAgent is a plugin for the **MetaMask Agent Wallet** (`mm` CLI), built for the Monad Metropolis
-Hackathon track *Best Agent Wallet Plugin*. It adds agent-to-agent commerce on **Monad mainnet (`143`)**
+MonAgent is a plugin for the **MetaMask Agent Wallet** (`mm` CLI). It adds agent-to-agent commerce
+on **Monad mainnet (`143`)**
 and **testnet (`10143`)**: payments, on-chain identity and reputation, paid API calls, and escrow.
 Every transaction and signature is executed and policy-checked by MetaMask.
 
